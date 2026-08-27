@@ -54,3 +54,15 @@ function exp(a: number): number{
 function inv(a: number): number{
     return 1.0 / a;
 }
+
+function log_back(a: number, b: number): number{
+    return (1.0 / a) * b;
+}
+
+function inv_back(a: number, b: number): number{
+    return -(1.0 / (a * a)) * b;
+}
+
+function relu_back(a: number, b: number): number{
+    return a > 0 ? b : 0;
+}
