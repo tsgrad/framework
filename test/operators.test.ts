@@ -24,3 +24,37 @@ describe("sigmoid", () =>{
         }
     });
 });
+
+describe("Logical properties", () =>{
+    const values = [-2, -1, 0, 1, 2, 3];
+
+    test("Test the transitive property of lt (a < b and b < c implies a < c)", () =>{
+        for (const a of values) {
+            for (const b of values) {
+                for (const c of values) {
+                    if (lt(a, b) && lt(b, c)) {
+                        expect(lt(a, c)).toBe(1);
+                    }
+                }
+            }
+        }
+    });
+
+    test("mul is symmetric", () =>{
+        for (const a of values) {
+            for (const b of values) {
+                expect(mul(a, b)).toEqual(mul(b, a));
+            }
+        }
+    });
+
+    test("make sure mul, and add are distributive", () =>{
+        for (const a of values) {
+            for (const b of values) {
+                for (const c of values) { // + 0 is because in javascript -0 and +0 are different, thank you javascript
+                    expect(mul(c, add(a, b)) + 0).toEqual(add(mul(c, a), mul(c, b)) + 0);
+                }
+            }
+        }
+    });
+});
