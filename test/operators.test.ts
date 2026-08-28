@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest"
-import { mul, id, add, neg, lt, eq, max, is_close, sigmoid, relu, log, exp, inv, log_back, inv_back, relu_back, addLists, sum, zipWith, prod } from "../src/operators";
+import { mul, id, add, neg, lt, eq, max, isClose, sigmoid, relu, log, exp, inv, logBack, invBack, reluBack, addLists, sum, zipWith, prod } from "../src/operators";
 
 function randomInt(min: number, max: number){
     return Math.floor(Math.random() * (max - min + 1) + min);
@@ -8,18 +8,18 @@ function randomInt(min: number, max: number){
 describe("sigmoid", () =>{
     test("Always between 0 and 1", () =>{
         // expecting a big positive number to be close to 1 but not greater than 1.
-        expect(is_close(sigmoid(100), 1) && sigmoid(100) <= 1).toBe(true);
+        expect(isClose(sigmoid(100), 1) && sigmoid(100) <= 1).toBe(true);
         
         // expecting a big negative number to be close to 0 but not less than 0.
-        expect(is_close(sigmoid(-100), 0) && sigmoid(-100) >= 0).toBe(true);
+        expect(isClose(sigmoid(-100), 0) && sigmoid(-100) >= 0).toBe(true);
     });
 
     test("One minus sigmoid should be the same as sigmoid of the negative", () =>{
-        expect(is_close(1 - sigmoid(2), sigmoid(-2))).toBe(1);
+        expect(isClose(1 - sigmoid(2), sigmoid(-2))).toBe(1);
     });
 
     test("Sigmoid should cross 0.5 at 0", () =>{
-        expect(is_close(sigmoid(0), 0.5)).toBe(1);
+        expect(isClose(sigmoid(0), 0.5)).toBe(1);
     });
 
     test("Sigmoid is strictly increasing", () => {

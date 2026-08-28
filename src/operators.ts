@@ -27,7 +27,7 @@ export function max(a : number, b: number): number{
     return a > b ? a : b;
 }
 
-export function is_close(a: number, b: number): number{
+export function isClose(a: number, b: number): number{
     return Math.abs(a - b) < 1e-2 ? 1 : 0;
 }
 
@@ -55,15 +55,15 @@ export function inv(a: number): number{
     return 1.0 / a;
 }
 
-export function log_back(a: number, b: number): number{
+export function logBack(a: number, b: number): number{
     return b / a;
 }
 
-export function inv_back(a: number, b: number): number{
+export function invBack(a: number, b: number): number{
     return -b / (a * a);
 }
 
-export function relu_back(a: number, b: number): number{
+export function reluBack(a: number, b: number): number{
     return a > 0 ? b : 0;
 }
 
