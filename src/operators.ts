@@ -66,3 +66,31 @@ export function inv_back(a: number, b: number): number{
 export function relu_back(a: number, b: number): number{
     return a > 0 ? b : 0;
 }
+
+// For this task 0.3 section for now I'm going to group everything under array
+// This might need to be changed to a general class of iterable later
+export function map(func: Function, it: Array<number>): Array<number>{
+    for (let i = 0; i < it.length; i++)
+        func(it[i]);
+    return it;
+}
+
+export function zipWith(func: Function, it1: Array<number>, it2: Array<number>): Array<number>{
+    if (it1.length < it2.length){
+        for (let i = 0; i < it1.length; i++)
+            it2[i] = func(it1[i], it2[i]);
+        return it2;
+    }
+    else{
+        for (let i = 0; i < it2.length; i++)
+            it1[i] = func(it1[i], it2[i]);
+        return it1;
+    }
+}
+
+export function reduce(func: Function, it: Array<number>): number{
+    let res : number = 0;
+    for (let i = 0; i < it.length; i++)
+        res += func(it[i]);
+    return res;
+}
