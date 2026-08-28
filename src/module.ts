@@ -1,4 +1,4 @@
-class Parameter{
+export class Parameter{
     /*
     A Parameter is a special container stored in a `Module`.
 
@@ -7,13 +7,13 @@ class Parameter{
     */
 
     public value: any;
-    public name: String | undefined;
+    public name: string | undefined;
 
-    constructor(x: any, name?: String){
+    constructor(x: any, name?: string){
         this.value = x;
         this.name = name;
-        if ("requires_grad" in x){
-            this.value.requires_grad = true;
+        if ("requiresGrad" in x){
+            this.value.requiresGrad = true;
             if (this.name != undefined){
                 this.value.name = this.name;
             }
@@ -23,8 +23,8 @@ class Parameter{
     update(x: any): void {
         // Update the parameter value
         this.value = x;
-         if ("requires_grad" in x){
-            this.value.requires_grad = true;
+         if ("requiresGrad" in x){
+            this.value.requiresGrad = true;
             if (this.name != undefined){
                 this.value.name = this.name;
             }
@@ -32,7 +32,7 @@ class Parameter{
     }
 };
 
-class Module{
+export class Module{
     /*
         Modules form a tree that store parameters and other
         submodules. They make up the basis of neural network stacks.
@@ -44,13 +44,13 @@ class Module{
         training : Whether the module is in training mode or evaluation mode
     */
 
-    private _modules: Map<String, Module>;
-    private _parameters: Map<String, Parameter>;
-    public training: Boolean; // true means training, false means evaluating
+    private _modules: Map<string, Module>;
+    private _parameters: Map<string, Parameter>;
+    public training: boolean; // true means training, false means evaluating
 
     constructor(){
-        this._modules = new Map<String, Module>;
-        this._parameters = new Map<String, Parameter>;
+        this._modules = new Map<string, Module>;
+        this._parameters = new Map<string, Parameter>;
         this.training = true;
     }
 
@@ -74,7 +74,7 @@ class Module{
         }
     }
     
-    named_parameters(): [String, Parameter][]{
+    namedParameters(): [string, Parameter][]{
         /*
         Collect all the parameters of this module and its children.
 
@@ -83,13 +83,15 @@ class Module{
             The name and `Parameter` of each ancestor parameter.
         */
 
-        let res : [String, Parameter][] = [];
+        let res : [string, Parameter][] = [];
         // Add all parameters of this module
         res.push(...this._parameters.entries());
 
         // Add all parameters of all of this modules children
-        for (const mod of this.modules()){
-            res.push(...mod.named_parameters());
+        for (const [modName, mod] of this._modules){
+            for(const [name, p] of mod.namedParameters()){
+                res.push([`${modName}.${name}`, p]);
+            }
         }
 
         return res;
@@ -109,7 +111,7 @@ class Module{
         return res;
     }
 
-    add_parameter(k: String, v: any): Parameter{
+    addParameter(k: string, v: any): Parameter{
         let val = new Parameter(v, k);
         this._parameters.set(k, val);
         return val;
