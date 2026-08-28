@@ -1,5 +1,9 @@
 import { describe, test, expect } from "vitest"
-import { mul, id, add, neg, lt, eq, max, is_close, sigmoid, relu, log, exp, inv, log_back, inv_back, relu_back } from "../src/operators";
+import { mul, id, add, neg, lt, eq, max, is_close, sigmoid, relu, log, exp, inv, log_back, inv_back, relu_back, addLists, sum, zipWith, prod } from "../src/operators";
+
+function randomInt(min: number, max: number){
+    return Math.floor(Math.random() * (max - min + 1) + min);
+}
 
 describe("sigmoid", () =>{
     test("Always between 0 and 1", () =>{
@@ -58,3 +62,23 @@ describe("Logical properties", () =>{
         }
     });
 });
+
+describe("Higher order functions", () =>{
+    test("Test addLists and zipWith", ()=>{
+        let a = randomInt(-100, 100), b = randomInt(-100, 100), c = randomInt(-100, 100), d = randomInt(-100, 100);
+        let combined = addLists([a, b], [c, d]);
+        expect(combined[0] + 0).toEqual(add(a, c) + 0);
+        expect(combined[1] + 0).toEqual(add(b, d) + 0);
+    });
+
+    test("Test distributive property of sum and addLists", () => {
+        // Testing (a + b) + (c + d) = (a + c) + (b + d)
+        let a = randomInt(-100, 100), b = randomInt(-100, 100), c = randomInt(-100, 100), d = randomInt(-100, 100);
+        expect(add(sum([a, b]), sum([c, d])) + 0).toEqual(sum(addLists([a, b], [c, d])) + 0);
+    });
+
+    test("Test prod", () => {
+        let a = randomInt(-100, 100), b = randomInt(-100, 100), c = randomInt(-100, 100);
+        expect(prod([a, b, c]) + 0).toEqual(a * b * c + 0);
+    });
+})
