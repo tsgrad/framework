@@ -70,7 +70,48 @@ class Module{
         // Sets the training bool of this module and all child modules to false (meaning eval)
         this.training = false;
         for (const mod  of this.modules()){
-            mod.train();
+            mod.eval();
         }
+    }
+    
+    named_parameters(): [String, Parameter][]{
+        /*
+        Collect all the parameters of this module and its children.
+
+        Returns
+        -------
+            The name and `Parameter` of each ancestor parameter.
+        */
+
+        let res : [String, Parameter][] = [];
+        // Add all parameters of this module
+        res.push(...this._parameters.entries());
+
+        // Add all parameters of all of this modules children
+        for (const mod of this.modules()){
+            res.push(...mod.named_parameters());
+        }
+
+        return res;
+    }
+
+    parameters(): Parameter[]{
+        //Enumerate over all the parameters of this module and its descendents
+
+        // Get all parameters from this module
+        let res : Parameter[] = Array.from(this._parameters.values());
+        
+        // Get all parameters from all of this modules children
+        for (const mod of this.modules()){
+            res.push(...mod.parameters());
+        }
+
+        return res;
+    }
+
+    add_parameter(k: String, v: any): Parameter{
+        let val = new Parameter(v, k);
+        this._parameters.set(k, val);
+        return val;
     }
 };
