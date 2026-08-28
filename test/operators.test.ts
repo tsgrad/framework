@@ -1,9 +1,6 @@
 import { describe, test, expect } from "vitest"
 import { mul, id, add, neg, lt, eq, max, isClose, sigmoid, relu, log, exp, inv, logBack, invBack, reluBack, addLists, sum, zipWith, prod } from "../src/operators";
-
-function randomInt(min: number, max: number){
-    return Math.floor(Math.random() * (max - min + 1) + min);
-}
+import { randomInt } from "./testhelperfunctions";
 
 describe("sigmoid", () =>{
     test("Always between 0 and 1", () =>{
