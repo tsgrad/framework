@@ -56,11 +56,11 @@ export function inv(a: number): number{
 }
 
 export function log_back(a: number, b: number): number{
-    return (1.0 / a) * b;
+    return b / a;
 }
 
 export function inv_back(a: number, b: number): number{
-    return -(1.0 / (a * a)) * b;
+    return -b / (a * a);
 }
 
 export function relu_back(a: number, b: number): number{
