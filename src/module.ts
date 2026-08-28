@@ -52,6 +52,23 @@ export class Module{
         this._modules = new Map<string, Module>;
         this._parameters = new Map<string, Parameter>;
         this.training = true;
+
+        return new Proxy(this, {
+            set(target, key: string | symbol, val, rec) {
+                // intercept the operation and update _modules or _parameters as needed
+                if (typeof key === "string"){
+                    if (val instanceof Parameter){
+                        target._parameters.set(key, val);
+                    }
+                    else if (val instanceof Module){
+                        target._modules.set(key, val);
+                    }
+                }
+
+                // do the original operation
+                return Reflect.set(target, key, val, rec);
+            }
+        });
     }
 
     modules(): Module[]{
