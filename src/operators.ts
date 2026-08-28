@@ -85,14 +85,14 @@ export function negList(it: number[]): number[]{
     return map(neg)(it);
 }
 
-export function addLists(it1: Array<number>, it2: Array<number>): Array<number>{
+export function addLists(it1: number[], it2: number[]): number[]{
     return zipWith(add)(it1, it2);
 }
 
-export function sum(it: Array<number>): number{
+export function sum(it: number[]): number{
     return reduce(add, 0)(it);
 }
 
-export function prod(it: Array<number>): number{
+export function prod(it: number[]): number{
     return reduce(mul, 1)(it);
 }
