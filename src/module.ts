@@ -12,7 +12,7 @@ export class Parameter{
     constructor(x: any, name?: string){
         this.value = x;
         this.name = name;
-        if ("requiresGrad" in x){
+        if (this.value === Object(this.value) && "requiresGrad" in x){
             this.value.requiresGrad = true;
             if (this.name != undefined){
                 this.value.name = this.name;
@@ -23,7 +23,7 @@ export class Parameter{
     update(x: any): void {
         // Update the parameter value
         this.value = x;
-         if ("requiresGrad" in x){
+         if (this.value === Object(this.value) && "requiresGrad" in x){
             this.value.requiresGrad = true;
             if (this.name != undefined){
                 this.value.name = this.name;
