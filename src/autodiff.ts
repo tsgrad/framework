@@ -8,3 +8,24 @@ export function centralDifference(f: Function, vals: number[], arg: number = 0, 
 
     return (v1 - v2) / (2 * epsilon);
 }
+
+export class Context{
+    // Context class is used by `Function` to store information during forward pass
+    constructor(){
+        this.noGrad = false;
+        this.savedValues = [];
+    };
+
+    noGrad: boolean;;
+    savedValues: any[];
+
+    saveForBackward(values: any[]): void {
+        if (this.noGrad)
+            return;
+        this.savedValues = values;
+    }
+
+    savedTensors(): any[]{
+        return this.savedValues;
+    }
+}
