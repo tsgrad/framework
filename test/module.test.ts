@@ -44,7 +44,7 @@ class ModuleA4 extends Module{
 describe("Basic test of Module tree structure", () => {
     let mod = new ModuleA1();
 
-    console.log(mod);
+    //console.log(mod);
     test("Constructor for ModuleA1 works as expected", () =>{
         expect(mod.p1.value).toEqual(5);
         expect(mod.nonParam).toEqual(10);
