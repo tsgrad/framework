@@ -1,7 +1,7 @@
 import { Context } from "./autodiff";
 import { Add, EQ, Exp, Inv, Log, LT, Mul, Neg, ReLU, ScalarFunction, Sigmoid } from "./scalar_functions";
 
-class ScalarHistory{
+export class ScalarHistory{
     // Tracks the history of `Function` operations that were used
     // to construct the current variable
 
@@ -18,7 +18,7 @@ class ScalarHistory{
 
 type ScalarLike = (number | Scalar);
 
-class Scalar{
+export class Scalar{
     // Scalar values for autodifferentiation tracking
     // Can only be manipulated by `ScalarFunction`
 
