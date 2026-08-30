@@ -1,5 +1,5 @@
 import { Context } from "./autodiff";
-import { ScalarFunction } from "./scalar_functions";
+import { Add, EQ, Exp, Inv, Log, LT, Mul, Neg, ReLU, ScalarFunction, Sigmoid } from "./scalar_functions";
 
 class ScalarHistory{
     // Tracks the history of `Function` operations that were used
@@ -15,6 +15,8 @@ class ScalarHistory{
         this.inputs = inputs;
     }
 };
+
+type ScalarLike = (number | Scalar);
 
 class Scalar{
     // Scalar values for autodifferentiation tracking
@@ -40,7 +42,7 @@ class Scalar{
             this.name = this.uniqueId.toString();
     }
 
-    static apply(f: typeof ScalarFunction, ...vals: (number | Scalar)[]){
+    static apply(f: typeof ScalarFunction, ...vals: ScalarLike[]){
         let rawVals: number[] = [];
         let scalars: Scalar[] = [];
 
@@ -64,6 +66,64 @@ class Scalar{
         // Create new variable from the result with a new history
         let back = new ScalarHistory(f, ctx, scalars);
         return new Scalar(c, back);
+    }
+
+    add(b: ScalarLike): Scalar{
+        return Scalar.apply(Add, this, b);
+    }
+
+    sub(b: ScalarLike): Scalar{
+        return Scalar.apply(Add, this, Scalar.apply(Neg, b));
+    }
+
+    mul(b: ScalarLike): Scalar{
+        return Scalar.apply(Mul, this, b);
+    }
+
+    div(b: ScalarLike): Scalar{
+        return Scalar.apply(Mul, this, Scalar.apply(Inv, b));
+    }
+
+    // We might not need this since all our calls will look like a.div(b) but gonna add it for now
+    rdiv(b: ScalarLike): Scalar{
+        return Scalar.apply(Mul, Scalar.apply(Inv, this), b);
+    }
+
+    lt(b: ScalarLike): Scalar{
+        return Scalar.apply(LT, this, b);
+    }
+
+    gt(b: ScalarLike): Scalar{
+        return Scalar.apply(LT, b, this);
+    }
+
+    // Maybe needed? Kept for consistency
+    bool(): boolean{
+        return !!this.data; 
+    }
+
+    eq(b: ScalarLike): Scalar{
+        return Scalar.apply(EQ, this, b);
+    }
+
+    neg(): Scalar{
+        return Scalar.apply(Neg, this);
+    }
+
+    log(): Scalar{
+        return Scalar.apply(Log, this);
+    }
+
+    exp(): Scalar{
+        return Scalar.apply(Exp, this);
+    }
+
+    sigmoid(): Scalar{
+        return Scalar.apply(Sigmoid, this);
+    }
+
+    relu(): Scalar{
+        return Scalar.apply(ReLU, this);
     }
 }
 
