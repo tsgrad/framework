@@ -11,7 +11,7 @@ export function centralDifference(f: Function, vals: number[], arg: number = 0, 
 
 export class Context{
     // Context class is used by `Function` to store information during forward pass
-    constructor(){
+    constructor(noGrad: boolean = false, savedValues = []){
         this.noGrad = false;
         this.savedValues = [];
     };
