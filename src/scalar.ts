@@ -24,7 +24,7 @@ export class Scalar{
 
     private static _varCount: number = 0;
 
-    history: ScalarFunction | undefined;
+    history: ScalarHistory | undefined;
     derivative: number | undefined;
     data: number;
     uniqueId: number;
