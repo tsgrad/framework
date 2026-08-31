@@ -1,3 +1,5 @@
+import { Queue } from "./datastructures";
+
 export function centralDifference(f: Function, vals: number[], arg: number = 0, epsilon: number = 1e-6){
     let original = vals[arg];
     vals[arg] = original + epsilon;
@@ -32,9 +34,32 @@ export class Context{
 
 export interface Variable{
     uniqueId: number;
+    history: any;
     accumulateDerivative(x: any): void;
     isLeaf(): boolean;
     isConstant(): boolean;
     parents(): Variable[];
     chainRule(dOutput: any): [Variable, any][];
+}
+
+export function topologicalSort(variable: Variable): Variable[]{
+    let seen: Set<Variable> = new Set<Variable>();
+    let res: Variable[] = [];
+    let queue = new Queue<Variable>();
+    queue.push(variable);
+    seen.add(variable);
+
+    while (!queue.isEmpty()){
+        let node: Variable = queue.pop()!;
+        res.push(node);
+
+        
+        for (const val of node.history.inputs){
+            if (!seen.has(val)){
+                queue.push(val);
+                seen.add(val);
+            }
+        }
+    }
+    return res.reverse();
 }
