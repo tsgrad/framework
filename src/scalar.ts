@@ -125,5 +125,30 @@ export class Scalar{
     relu(): Scalar{
         return Scalar.apply(ReLU, this);
     }
+
+    accumulateDerivative(x: number): void{
+        if (!this.isLeaf())
+            throw new Error("Only leaf variables can have derivatives.");
+        
+        if (this.derivative === undefined)
+            this.derivative = 0.0;
+
+        this.derivative += x;
+    }
+
+    isLeaf(): boolean{
+        // True if this variable was created by the user (no `lastFn`)
+        return (this.history !== undefined && this.history.lastFn === undefined);
+    }
+
+    isConstant(): boolean{
+        return (this.history === undefined);
+    }
+
+    parents(): Scalar[]{
+        if (this.history === undefined)
+            throw new Error("history is undefined");
+        return this.history.inputs;
+    }
 }
 
