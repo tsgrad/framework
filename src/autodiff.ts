@@ -43,23 +43,47 @@ export interface Variable{
 }
 
 export function topologicalSort(variable: Variable): Variable[]{
-    let seen: Set<Variable> = new Set<Variable>();
+    let seen: Set<number> = new Set<number>();
     let res: Variable[] = [];
     let queue = new Queue<Variable>();
     queue.push(variable);
-    seen.add(variable);
+    seen.add(variable.uniqueId);
 
     while (!queue.isEmpty()){
         let node: Variable = queue.pop()!;
         res.push(node);
 
-        
+
         for (const val of node.history.inputs){
-            if (!seen.has(val)){
+            if (!seen.has(val.uniqueId)){
                 queue.push(val);
-                seen.add(val);
+                seen.add(val.uniqueId);
             }
         }
     }
     return res.reverse();
+}
+
+export function backpropagate(start: Variable, dStart: number = 1): void{
+    let order: Variable[] = topologicalSort(start);
+    let derivatives: Map<number, number> = new Map<number, number>();
+    derivatives.set(start.uniqueId, dStart);
+
+    for (const val of order){
+        if (val.isLeaf()){
+            val.accumulateDerivative(derivatives.get(val.uniqueId));
+        }
+        else{
+            let valDerivatives: [Variable, number][] = val.chainRule(derivatives.get(val.uniqueId));
+            for (const [parent, d] of valDerivatives){
+                let cur: number | undefined = derivatives.get(parent.uniqueId);
+                if (cur === undefined){
+                    derivatives.set(parent.uniqueId, d);
+                }
+                else{
+                    derivatives.set(parent.uniqueId, cur + d);
+                }
+            }
+        }
+    }
 }
