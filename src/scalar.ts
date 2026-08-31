@@ -1,15 +1,15 @@
-import { Context } from "./autodiff";
+import { Context, Variable } from "./autodiff";
 import { Add, EQ, Exp, Inv, Log, LT, Mul, Neg, ReLU, ScalarFunction, Sigmoid } from "./scalar_functions";
 
 export class ScalarHistory{
     // Tracks the history of `Function` operations that were used
     // to construct the current variable
 
-    lastFn: ScalarFunction | undefined;
+    lastFn: typeof ScalarFunction | undefined;
     ctx: Context | undefined;
     inputs: Scalar[] = [];
 
-    constructor(lastFn: ScalarFunction | undefined = undefined, ctx: Context | undefined = undefined, inputs: Scalar[] = []){
+    constructor(lastFn: typeof ScalarFunction | undefined = undefined, ctx: Context | undefined = undefined, inputs: Scalar[] = []){
         this.lastFn = lastFn;
         this.ctx = ctx;
         this.inputs = inputs;
@@ -18,7 +18,7 @@ export class ScalarHistory{
 
 type ScalarLike = (number | Scalar);
 
-export class Scalar{
+export class Scalar implements Variable{
     // Scalar values for autodifferentiation tracking
     // Can only be manipulated by `ScalarFunction`
 
@@ -149,6 +149,20 @@ export class Scalar{
         if (this.history === undefined)
             throw new Error("history is undefined");
         return this.history.inputs;
+    }
+
+    chainRule(gradient: number): [Variable, number][]{
+        let history = this.history;
+        if (history === undefined) throw new Error("History is undefined in chainrule");
+        if (history.lastFn === undefined) throw new Error("History has no lastFn in chainrule");
+        if (history.ctx === undefined) throw new Error("Context is undefined in chainrule");
+
+        let parentGradients: number[] = history.lastFn.backward(history.ctx, gradient);
+        let res: [Variable, number][] = [];
+        for (let i = 0; i < parentGradients.length; i++){
+            res.push([history.inputs[i], parentGradients[i]]);
+        }
+        return res;
     }
 }
 
