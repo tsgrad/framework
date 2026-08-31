@@ -29,3 +29,12 @@ export class Context{
         return this.savedValues;
     }
 }
+
+export interface Variable{
+    uniqueId: number;
+    accumulateDerivative(x: any): void;
+    isLeaf(): boolean;
+    isConstant(): boolean;
+    parents(): Variable[];
+    chainRule(dOutput: any): [Variable, any][];
+}
