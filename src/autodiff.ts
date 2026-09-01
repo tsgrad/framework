@@ -14,8 +14,8 @@ export function centralDifference(f: Function, vals: number[], arg: number = 0, 
 export class Context{
     // Context class is used by `Function` to store information during forward pass
     constructor(noGrad: boolean = false, savedValues = []){
-        this.noGrad = false;
-        this.savedValues = [];
+        this.noGrad = noGrad;
+        this.savedValues = savedValues;
     };
 
     noGrad: boolean;;
@@ -43,25 +43,22 @@ export interface Variable{
     chainRule(dOutput: any): [Variable, any][];
 }
 
-export function topologicalSort(variable: Variable): Variable[]{
-    let seen: Set<number> = new Set<number>();
-    let res: Variable[] = [];
-    let queue = new Queue<Variable>();
-    queue.push(variable);
-    seen.add(variable.uniqueId);
+export function topologicalSort(variable: Variable): Variable[] {
+    const seen = new Set<number>();
+    const res: Variable[] = [];
 
-    while (!queue.isEmpty()){
-        let node: Variable = queue.pop()!;
+    function dfs(node: Variable): void {
+        if (seen.has(node.uniqueId))
+            return;
+
+        seen.add(node.uniqueId);
+        for (const parent of node.parents())
+            dfs(parent);
+
         res.push(node);
-
-
-        for (const val of node.history.inputs){
-            if (!seen.has(val.uniqueId)){
-                queue.push(val);
-                seen.add(val.uniqueId);
-            }
-        }
     }
+
+    dfs(variable);
     return res.reverse();
 }
 
