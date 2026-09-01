@@ -1,4 +1,4 @@
-import { Context, Variable } from "./autodiff";
+import { backpropagate, Context, Variable } from "./autodiff";
 import { Add, EQ, Exp, Inv, Log, LT, Mul, Neg, ReLU, ScalarFunction, Sigmoid } from "./scalar_functions";
 
 export class ScalarHistory{
@@ -163,6 +163,10 @@ export class Scalar implements Variable{
             res.push([history.inputs[i], parentGradients[i]]);
         }
         return res;
+    }
+
+    backward(dOutput: number = 1.0){
+        backpropagate(this, dOutput);
     }
 }
 
