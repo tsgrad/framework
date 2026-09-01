@@ -1,6 +1,6 @@
 import { describe, test, expect } from "vitest"
 import { mul, id, add, neg, lt, eq, max, isClose, sigmoid, relu, log, exp, inv, logBack, invBack, reluBack, addLists, sum, zipWith, prod } from "../src/operators";
-import { randomInt } from "./testhelperfunctions";
+import { randomInt } from "../src/helperfunctions";
 
 describe("sigmoid", () =>{
     test("Always between 0 and 1", () =>{

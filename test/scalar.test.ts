@@ -1,6 +1,6 @@
 import { describe, test, expect } from "vitest"
 import { Scalar } from "../src/scalar"
-import { randomInt } from "./testhelperfunctions";
+import { randomInt } from "../src/helperfunctions";
 import { isClose, log, relu } from "../src/operators";
 
 // Toggle to see what the histories of the scalars look like
