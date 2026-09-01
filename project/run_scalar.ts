@@ -19,12 +19,12 @@ class Network extends Module{
         let h: Scalar[] = this.layer1.forward(x);
         let middle: Scalar[] = [];
         for (const val of h)
-            middle.push(val.relu());
+            middle.push(val.leakyrelu());
         h = this.layer2.forward(middle);
 
         let end: Scalar[] = [];
         for (const val of h)
-            end.push(val.relu());
+            end.push(val.leakyrelu());
 
         return this.layer3.forward(end)[0].sigmoid();
     }

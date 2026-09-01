@@ -1,4 +1,4 @@
-import { add, eq, exp, inv, log, lt, mul, neg, relu, sigmoid } from "../src/operators"
+import { add, eq, exp, inv, leakyrelu, log, lt, mul, neg, relu, sigmoid } from "../src/operators"
 import { Context } from "../src/autodiff"
 
 export class ScalarFunction{
@@ -71,13 +71,14 @@ export class Neg extends ScalarFunction{
 
 export class Sigmoid extends ScalarFunction{
     static forward(ctx: Context, a: number): number{
-        ctx.saveForBackward(a);
-        return sigmoid(a);
+        let res = sigmoid(a);
+        ctx.saveForBackward(res);
+        return res;
     }
 
     static backward(ctx: Context, d: number): number[]{
-        let [x] = ctx.savedValues;
-        return [d * exp(-x) * inv(((1 + exp(-x)) ** 2))]
+        let [s] = ctx.savedValues;
+        return [d * s * (1 - s)];
     }
 }
 
@@ -92,6 +93,19 @@ export class ReLU extends ScalarFunction{
         if (x > 0)
             return [d];
         return [0];
+    }
+}
+
+export class LeakyReLU extends ScalarFunction{
+    static forward(ctx: Context, a: number): number{
+        ctx.saveForBackward(a);
+        return leakyrelu(a);
+    }
+    static backward(ctx: Context, d: number): number[] {
+        let [x] = ctx.savedValues;
+        if (x > 0)
+            return [d];
+        return [d * 0.01];
     }
 }
 

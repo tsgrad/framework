@@ -1,5 +1,5 @@
 import { backpropagate, Context, Variable } from "./autodiff";
-import { Add, EQ, Exp, Inv, Log, LT, Mul, Neg, ReLU, ScalarFunction, Sigmoid } from "./scalar_functions";
+import { Add, EQ, Exp, Inv, LeakyReLU, Log, LT, Mul, Neg, ReLU, ScalarFunction, Sigmoid } from "./scalar_functions";
 
 export class ScalarHistory{
     // Tracks the history of `Function` operations that were used
@@ -124,6 +124,10 @@ export class Scalar implements Variable{
 
     relu(): Scalar{
         return Scalar.apply(ReLU, this);
+    }
+
+    leakyrelu(): Scalar{
+        return Scalar.apply(LeakyReLU, this);
     }
 
     accumulateDerivative(x: number): void{

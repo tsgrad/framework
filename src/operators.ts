@@ -42,6 +42,12 @@ export function relu(a: number): number{
     return Math.max(0, a);
 }
 
+export function leakyrelu(a: number, alpha: number = 0.01): number{
+    if (a > 0)
+        return a;
+    return alpha * a;
+}
+
 export function log(a: number): number{
     return Math.log(a); // ln(a)
 }
