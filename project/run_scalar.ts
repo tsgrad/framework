@@ -114,8 +114,7 @@ export class ScalarTrain{
                 loss = prob.log().neg();
                 totalLoss += loss.data;
 
-                loss.div(data.n);
-                loss.backward();
+                loss.div(data.n).backward();
             }
 
             if (data.n != 0)
