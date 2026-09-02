@@ -121,4 +121,8 @@ export class Module{
         this._parameters.set(k, val);
         return val;
     }
+
+    addModule(k: string, v: Module): void {
+        this._modules.set(k, v);
+    }
 };

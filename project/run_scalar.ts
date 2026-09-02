@@ -4,37 +4,55 @@ import { Scalar } from "../src/scalar";
 import { Graph, datasets } from "../src/datasets";
 import { SGD } from "../src/optim";
 
-class Network extends Module{
-    layer1: Linear;
-    layer2: Linear;
-    layer3: Linear;
-    constructor(hiddenLayers: number){
+
+type ActivationFunction = "relu" | "leakyrelu" | "sigmoid";
+
+export interface NetworkLayer{
+    layer: Layer;
+    activationFunction: ActivationFunction
+}
+
+export abstract class Network extends Module{
+    layers: NetworkLayer[];
+
+    constructor(){
         super();
-        this.layer1 = new Linear(2, hiddenLayers);
-        this.layer2 = new Linear(hiddenLayers, hiddenLayers);
-        this.layer3 = new Linear(hiddenLayers, 1);
+        this.layers = [];
     }
 
-    forward(x: Scalar[]): Scalar{
-        let h: Scalar[] = this.layer1.forward(x);
-        let middle: Scalar[] = [];
-        for (const val of h)
-            middle.push(val.leakyrelu());
-        h = this.layer2.forward(middle);
+    forward(x: Scalar[]): Scalar[]{
+        let h = x;
+        for (let i = 0; i < this.layers.length; i++){
+            h = this.layers[i].layer.forward(h);
+            h = h.map(value => { return value[this.layers[i].activationFunction](); } );
+        }
+        return h;
+    }
 
-        let end: Scalar[] = [];
-        for (const val of h)
-            end.push(val.leakyrelu());
-
-        return this.layer3.forward(end)[0].sigmoid();
+    addLayer(type: new (inSize: number, outSize: number) => Layer, activationFunction: ActivationFunction, inSize: number, outSize: number){
+        let layer = new type(inSize, outSize);
+        this.addModule(`layer_${this.layers.length}`, layer);
+        this.layers.push({layer: layer, activationFunction: activationFunction});
     }
 }
 
-class Linear extends Module{
+export abstract class Layer extends Module{
+    inSize: number;
+    outSize: number;
+    constructor(inSize: number, outSize: number){
+        super();
+        this.inSize = inSize;
+        this.outSize = outSize;
+    }
+
+    abstract forward(x: Scalar[]): Scalar[];
+}
+
+export class Linear extends Layer{
     weights: Parameter[][];
     bias: Parameter[];
     constructor(inSize: number, outSize: number){
-        super();
+        super(inSize, outSize);
         this.weights = [];
         this.bias = [];
         for (let i = 0; i < inSize; i++){
@@ -60,6 +78,14 @@ class Linear extends Module{
     }
 }
 
+export class SimpleNetwork extends Network {
+    constructor() {
+        super();
+        //this.addLayer(Linear, "relu", 2, 2);
+        this.addLayer(Linear, "sigmoid", 2, 1);
+    }
+}
+
 function defaultLogFn(epoch: number, totalLoss: number, correct: number, losses: number): void{
     console.log(`Epoch ${epoch} loss ${totalLoss} correct ${correct}`);
 }
@@ -67,25 +93,21 @@ function defaultLogFn(epoch: number, totalLoss: number, correct: number, losses:
 export class ScalarTrain{
     learningRate: number = 0;
     maxEpochs: number = 0;
-
-    hiddenLayers: number;
     model: Network;
 
-    constructor(hiddenLayers: number){
-        this.hiddenLayers = hiddenLayers;
-        this.model = new Network(hiddenLayers);
+    constructor(){
+        this.model = new SimpleNetwork();
     }
 
-    runOne(x: number[]): Scalar{
+    runOne(x: number[]): Scalar[]{
         return this.model.forward([new Scalar(x[0], undefined, "x_1"), new Scalar(x[1], undefined, "x_2")]);
     }
 
     train(data: Graph, learningRate: number, maxEpochs: number = 500, logFn: Function = defaultLogFn): void{
         this.learningRate = learningRate;
         this.maxEpochs = maxEpochs;
-        this.model = new Network(this.hiddenLayers);
         let optim = new SGD(this.model.parameters(), learningRate);
-
+    
         let losses: Scalar[] = [];
         for (let epoch = 1; epoch < maxEpochs + 1; epoch++){
             let totalLoss = 0;
@@ -98,7 +120,7 @@ export class ScalarTrain{
                 let y: number = data.y[i];
 
                 let sX1 = new Scalar(x1), sX2 = new Scalar(x2);
-                let out: Scalar = this.model.forward([sX1, sX2]);
+                let out: Scalar = this.model.forward([sX1, sX2])[0];
 
                 let prob: Scalar;
                 if (y === 1){
