@@ -71,7 +71,6 @@ export class ScalarTrain{
     hiddenLayers: number;
     model: Network;
 
-
     constructor(hiddenLayers: number){
         this.hiddenLayers = hiddenLayers;
         this.model = new Network(hiddenLayers);
