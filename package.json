@@ -18,7 +18,11 @@
   "homepage": "https://github.com/tsgrad/framework#readme",
   "description": "",
   "devDependencies": {
+    "@types/plotly.js": "^3.0.13",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11"
+  },
+  "dependencies": {
+    "plotly.js-dist": "^4.0.0"
   }
 }
