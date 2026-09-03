@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MiniTorch TypeScript</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: system-ui, sans-serif;
+            display: grid;
+            place-items: center;
+            min-height: 100vh;
+            background: #f5f5f5;
+        }
+
+        #plot {
+            width: min(90vw, 700px);
+            height: min(90vh, 700px);
+            background: white;
+        }
+
+        #app {
+            display: grid;
+            justify-items: center;
+            gap: 12px;
+        }
+
+        button {
+            padding: 8px 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <main id="app">
+        <button id="export-gif">Export GIF</button>
+        <div id="plot"></div>
+    </main>
+
+    <script type="module" src="/project/interface/main.ts"></script>
+</body>
+</html>

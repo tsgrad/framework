@@ -108,7 +108,7 @@ export class ScalarTrain{
         this.maxEpochs = maxEpochs;
         let optim = new SGD(this.model.parameters(), learningRate);
     
-        let losses: Scalar[] = [];
+        let losses: number[] = [];
         for (let epoch = 1; epoch < maxEpochs + 1; epoch++){
             let totalLoss = 0;
             let correct = 0;
@@ -139,11 +139,11 @@ export class ScalarTrain{
             }
 
             if (data.n != 0)
-                losses.push(loss!);
+                losses.push(totalLoss);
 
             optim.step();
 
-            if (epoch % 10 === 0 || epoch == maxEpochs)
+            if (epoch % 5 === 0 || epoch == maxEpochs)
                 logFn(epoch, totalLoss, correct, losses);
         }
     }

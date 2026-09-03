@@ -34,7 +34,7 @@ function diag(n: number): Graph{
     let x = makePts(n);
     let y = [];
     for (const [x1, x2] of x){
-        y.push(x1 + x2 < 0.5 ? 1 : 0);
+        y.push(Math.abs(x1 + x2) < 0.5 ? 1 : 0);
     }
     return new Graph(n, x, y);
 }
