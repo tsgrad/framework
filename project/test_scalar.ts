@@ -18,10 +18,20 @@ export class Network2 extends Network{
     }
 }
 
+export class Network3 extends Network{
+    constructor(){
+        super();
+        this.addLayer(Linear, "leakyrelu", 2, 5);
+        this.addLayer(Linear, "leakyrelu", 5, 5);
+        this.addLayer(Linear, "sigmoid", 5, 1);
+    }
+}
+
 export class Network6 extends Network{
     constructor(){
         super();
         this.addLayer(Linear, "leakyrelu", 2, 10);
+        this.addLayer(Linear, "leakyrelu", 10, 10);
         this.addLayer(Linear, "leakyrelu", 10, 10);
         this.addLayer(Linear, "leakyrelu", 10, 10);
         this.addLayer(Linear, "sigmoid", 10, 1);
@@ -53,8 +63,19 @@ export function test2(): void{
     new ScalarTrain().train(data, RATE, 500);
 }
 
+export function test3(): void{
+    console.log("Test 3");
+    let PTS = 50;
+    let RATE = 0.5;
+    let data = datasets.Split(PTS);
+
+    let scalarTrain = new ScalarTrain();
+    scalarTrain.model = new Network3();
+    new ScalarTrain().train(data, RATE, 5000);
+}
+
 export function test6(): void{
-    console.log("Test 2");
+    console.log("Test 6");
     let PTS = 50;
     let RATE = 0.5;
     let data = datasets.Diag(PTS);

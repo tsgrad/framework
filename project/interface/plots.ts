@@ -8,6 +8,64 @@ import type {
 
 import { Graph } from "../../src/datasets";
 
+interface GraphBounds {
+    xMin: number;
+    xMax: number;
+    yMin: number;
+    yMax: number;
+}
+
+function getGraphBounds(graph: Graph, paddingFraction = 0.05): GraphBounds {
+    if (graph.x.length === 0) {
+        return {
+            xMin: 0,
+            xMax: 1,
+            yMin: 0,
+            yMax: 1,
+        };
+    }
+
+    const xs = graph.x.map(point => point[0]);
+    const ys = graph.x.map(point => point[1]);
+
+    const rawXMin = Math.min(...xs);
+    const rawXMax = Math.max(...xs);
+    const rawYMin = Math.min(...ys);
+    const rawYMax = Math.max(...ys);
+
+    const xSpan = rawXMax - rawXMin || 1;
+    const ySpan = rawYMax - rawYMin || 1;
+
+    const xPadding = xSpan * paddingFraction;
+    const yPadding = ySpan * paddingFraction;
+
+    return {
+        xMin: rawXMin - xPadding,
+        xMax: rawXMax + xPadding,
+        yMin: rawYMin - yPadding,
+        yMax: rawYMax + yPadding,
+    };
+}
+
+function graphLayout(graph: Graph): Partial<Layout> {
+    const bounds = getGraphBounds(graph);
+
+    return {
+        xaxis: {
+            showgrid: false,
+            zeroline: false,
+            visible: false,
+            range: [bounds.xMin, bounds.xMax],
+        },
+        yaxis: {
+            showgrid: false,
+            zeroline: false,
+            visible: false,
+            range: [bounds.yMin, bounds.yMax],
+        },
+    };
+}
+
 type Model = (points: [number, number][]) => number[];
 
 export interface PlotSpec {
@@ -24,31 +82,30 @@ export function makeScatters(graph: Graph, model?: Model, size = 50): Data[] {
     const scatters: Data[] = [];
 
     if (model !== undefined) {
-        const z = Array.from({ length: size + 1 }, (_, k) => {
-            const points: [number, number][] = Array.from(
-                { length: size + 1 },
-                (_, j) => [
-                    j / (size + 1),
-                    k / (size + 1),
-                ],
-            );
-
-            return model(points);
-        });
-
+        const bounds = getGraphBounds(graph);
+        const gridX = Array.from(
+            { length: size + 1 },
+            (_, index) =>
+                bounds.xMin +
+                (index / size) * (bounds.xMax - bounds.xMin),
+        );
+        const gridY = Array.from(
+            { length: size + 1 },
+            (_, index) =>
+                bounds.yMin +
+                (index / size) * (bounds.yMax - bounds.yMin),
+        );
+        const z = gridY.map(y =>
+            model(gridX.map(x => [x, y] as [number, number])),
+        );
         scatters.push({
             type: "heatmap",
+            x: gridX,
+            y: gridY,
             z,
-            dx: 1 / size,
-            x0: 0,
-            dy: 1 / size,
-            y0: 0,
-        
-            // Values below/above these become pure blue/red.
             zmin: 0.1,
             zmax: 0.9,
             zmid: 0.5,
-        
             colorscale: [
                 [0.00, "#0000ff"],
                 [0.25, "#3f6fff"],
@@ -60,10 +117,7 @@ export function makeScatters(graph: Graph, model?: Model, size = 50): Data[] {
                 [0.75, "#ff5c5c"],
                 [1.00, "#ff0000"],
             ],
-        
             zsmooth: "best",
-            xgap: 0,
-            ygap: 0,
             opacity: 0.65,
             showscale: false,
             hoverinfo: "skip",
@@ -163,24 +217,13 @@ export function animate(target: Root, graph: Graph, models: Model[], names: numb
     });
 
     const layout: Partial<Layout> = {
+        ...graphLayout(graph),
         sliders: [{
             active: 0,
             currentvalue: { prefix: "Epoch " },
             pad: { t: 50 },
             steps: steps as any,
         }],
-        xaxis: {
-            showgrid: false,
-            zeroline: false,
-            visible: false,
-            range: [0, 1],
-        },
-        yaxis: {
-            showgrid: false,
-            zeroline: false,
-            visible: false,
-            range: [0, 1],
-        },
     };
 
     return Plotly.newPlot(
@@ -192,18 +235,9 @@ export function animate(target: Root, graph: Graph, models: Model[], names: numb
 
 export function plotOut(graph: Graph, model?: Model, _name = "", size = 50, oneD = false): PlotSpec {
     return {
-        data: oneD ? makeOneD(graph, model, size) : makeScatters(graph, model, size),
-        layout: {
-            xaxis: {
-                showgrid: false,
-                visible: false,
-                range: [0, 1],
-            },
-            yaxis: {
-                showgrid: false,
-                visible: false,
-                range: [0, 1],
-            },
-        },
+        data: oneD
+            ? makeOneD(graph, model, size)
+            : makeScatters(graph, model, size),
+        layout: graphLayout(graph),
     };
 }

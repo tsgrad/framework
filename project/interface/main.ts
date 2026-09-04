@@ -8,7 +8,7 @@ import { datasets } from "../../src/datasets";
 import { Scalar } from "../../src/scalar";
 import { Network, ScalarTrain } from "../run_scalar";
 import { animate, plotOut } from "./plots";
-import { Network1, Network2, Network6} from "../test_scalar"
+import { Network1, Network2, Network3, Network6} from "../test_scalar"
 
 
 const plotElement = document.querySelector<HTMLDivElement>("#plot");
@@ -191,11 +191,11 @@ exportButton.addEventListener("click", async () => {
 });
 
 const PTS = 50;
-const epochCount = 500;
-const learningRate = 0.5;
-const graph = datasets.Diag(PTS);
+const epochCount = 2000;
+const learningRate = 0.1;
+const graph = datasets.Split(PTS);
 
-const createNetwork = (): Network => new Network2();
+const createNetwork = (): Network => new Network3();
 const trainer = new ScalarTrain();
 trainer.model = createNetwork();
 const initialModel = snapshotModel(trainer, createNetwork);
