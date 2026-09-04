@@ -91,6 +91,45 @@ function spiral(n: number): Graph{
     return new Graph(n, X, y2);
 }
 
+function makeMoons(n: number, noise = 0.1): Graph {
+    const samples: { point: [number, number]; label: number }[] = [];
+    const outerCount = Math.floor(n / 2);
+    const innerCount = n - outerCount;
+
+    const gaussian = (): number => {
+        const u = Math.max(Math.random(), Number.EPSILON);
+        const v = Math.random();
+        return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    };
+
+    const add = (point: [number, number], label: number): void => {
+        samples.push({
+            point: [
+                point[0] + noise * gaussian(),
+                point[1] + noise * gaussian(),
+            ],
+            label
+        });
+    };
+
+    for (let i = 0; i < outerCount; i++) {
+        const angle = Math.PI * i / Math.max(outerCount - 1, 1);
+        add([Math.cos(angle), Math.sin(angle)], 0);
+    }
+
+    for (let i = 0; i < innerCount; i++) {
+        const angle = Math.PI * i / Math.max(innerCount - 1, 1);
+        add([1 - Math.cos(angle), 0.5 - Math.sin(angle)], 1);
+    }
+
+    for (let i = samples.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [samples[i], samples[j]] = [samples[j], samples[i]];
+    }
+
+    return new Graph(samples.length, samples.map(sample => sample.point), samples.map(sample => sample.label));
+}
+
 export const datasets = {
     "Simple": simple,
     "Diag": diag,
@@ -98,4 +137,5 @@ export const datasets = {
     "Xor": xor,
     "Circle": circle,
     "Spiral": spiral,
+    "Moon": makeMoons
 }

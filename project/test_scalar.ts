@@ -21,9 +21,8 @@ export class Network2 extends Network{
 export class Network3 extends Network{
     constructor(){
         super();
-        this.addLayer(Linear, "leakyrelu", 2, 5);
-        this.addLayer(Linear, "leakyrelu", 5, 5);
-        this.addLayer(Linear, "sigmoid", 5, 1);
+        this.addLayer(Linear, "leakyrelu", 2, 8);
+        this.addLayer(Linear, "sigmoid", 8, 1);
     }
 }
 

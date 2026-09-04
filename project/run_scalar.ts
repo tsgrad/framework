@@ -2,7 +2,7 @@ import { Module, Parameter } from "../src/module";
 import { randomFloat } from "../src/helperfunctions";
 import { Scalar } from "../src/scalar";
 import { Graph, datasets } from "../src/datasets";
-import { SGD } from "../src/optim";
+import { Optimizer, SGD } from "../src/optim";
 
 
 type ActivationFunction = "relu" | "leakyrelu" | "sigmoid";
@@ -94,9 +94,11 @@ export class ScalarTrain{
     learningRate: number = 0;
     maxEpochs: number = 0;
     model: Network;
+    optim: Optimizer;
 
     constructor(){
         this.model = new SimpleNetwork();
+        this.optim = new SGD(this.model.parameters(), this.learningRate);
     }
 
     runOne(x: number[]): Scalar[]{
@@ -106,13 +108,12 @@ export class ScalarTrain{
     train(data: Graph, learningRate: number, maxEpochs: number = 500, logFn: Function = defaultLogFn): void{
         this.learningRate = learningRate;
         this.maxEpochs = maxEpochs;
-        let optim = new SGD(this.model.parameters(), learningRate);
     
         let losses: number[] = [];
         for (let epoch = 1; epoch < maxEpochs + 1; epoch++){
             let totalLoss = 0;
             let correct = 0;
-            optim.zeroGrad();
+            this.optim.zeroGrad();
 
             let loss: Scalar;
             for (let i = 0; i < data.n; i++){
@@ -141,7 +142,7 @@ export class ScalarTrain{
             if (data.n != 0)
                 losses.push(totalLoss);
 
-            optim.step();
+            this.optim.step();
 
             if (epoch % 5 === 0 || epoch == maxEpochs)
                 logFn(epoch, totalLoss, correct, losses);

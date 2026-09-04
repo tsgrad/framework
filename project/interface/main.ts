@@ -9,6 +9,7 @@ import { Scalar } from "../../src/scalar";
 import { Network, ScalarTrain } from "../run_scalar";
 import { animate, plotOut } from "./plots";
 import { Network1, Network2, Network3, Network6} from "../test_scalar"
+import { SGDMomentum } from "../../src/optim";
 
 
 const plotElement = document.querySelector<HTMLDivElement>("#plot");
@@ -190,14 +191,17 @@ exportButton.addEventListener("click", async () => {
     }
 });
 
-const PTS = 50;
-const epochCount = 2000;
-const learningRate = 0.1;
-const graph = datasets.Split(PTS);
+const PTS = 200;
+const epochCount = 500;
+const learningRate = 0.5;
+const beta = 0.9;
+const noise = 0.5;
+const graph = datasets.Moon(PTS, noise);
 
-const createNetwork = (): Network => new Network3();
+const createNetwork = (): Network => new Network6();
 const trainer = new ScalarTrain();
 trainer.model = createNetwork();
+trainer.optim = new SGDMomentum(trainer.model.parameters(), learningRate, beta);
 const initialModel = snapshotModel(trainer, createNetwork);
 
 const models = [initialModel];
@@ -217,6 +221,14 @@ trainer.train(
         epochs.push(epoch);
         losses.push(calculateLoss(checkpoint));
     },
+);
+
+console.table(
+    trainer.model.namedParameters().map(([name, parameter]) => ({
+        name,
+        type: name.includes(".weight_") ? "weight" : "bias",
+        value: parameter.value.data,
+    })),
 );
 
 await animate(plotElement, graph, models, epochs);
