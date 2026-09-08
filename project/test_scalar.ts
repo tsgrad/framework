@@ -75,11 +75,13 @@ export function test3(): void{
 
 export function test6(): void{
     console.log("Test 6");
-    let PTS = 50;
+    let PTS = 1000;
     let RATE = 0.5;
     let data = datasets.Diag(PTS);
 
     let scalarTrain = new ScalarTrain();
     scalarTrain.model = new Network6();
-    new ScalarTrain().train(data, RATE, 5000);
+    new ScalarTrain().train(data, RATE, 10000);
 }
+
+test6();

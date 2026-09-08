@@ -106,6 +106,7 @@ export class ScalarTrain{
     }
 
     train(data: Graph, learningRate: number, maxEpochs: number = 500, logFn: Function = defaultLogFn): void{
+        const starttime = performance.now();
         this.learningRate = learningRate;
         this.maxEpochs = maxEpochs;
     
@@ -147,5 +148,8 @@ export class ScalarTrain{
             if (epoch % 5 === 0 || epoch == maxEpochs)
                 logFn(epoch, totalLoss, correct, losses);
         }
+
+        const endtime = performance.now();
+        console.log(`Time to train took ${endtime - starttime}`);
     }
 }
