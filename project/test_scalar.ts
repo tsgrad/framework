@@ -12,17 +12,17 @@ export class Network1 extends Network{
 export class Network2 extends Network{
     constructor(){
         super();
-        this.addLayer(Linear, "leakyrelu", 2, 5);
-        this.addLayer(Linear, "leakyrelu", 5, 5);
-        this.addLayer(Linear, "sigmoid", 5, 1);
+        this.addLayer(Linear, "leakyrelu", 2, 3);
+        this.addLayer(Linear, "leakyrelu", 3, 3);
+        this.addLayer(Linear, "sigmoid", 3, 1);
     }
 }
 
 export class Network3 extends Network{
     constructor(){
         super();
-        this.addLayer(Linear, "leakyrelu", 2, 8);
-        this.addLayer(Linear, "sigmoid", 8, 1);
+        this.addLayer(Linear, "relu", 2, 3);
+        this.addLayer(Linear, "sigmoid", 3, 1);
     }
 }
 

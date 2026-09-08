@@ -191,14 +191,14 @@ exportButton.addEventListener("click", async () => {
     }
 });
 
-const PTS = 200;
-const epochCount = 500;
+const PTS = 100;
+const epochCount = 1000;
 const learningRate = 0.5;
 const beta = 0.9;
-const noise = 0.5;
+const noise = 0.10;
 const graph = datasets.Moon(PTS, noise);
 
-const createNetwork = (): Network => new Network6();
+const createNetwork = (): Network => new Network3();
 const trainer = new ScalarTrain();
 trainer.model = createNetwork();
 trainer.optim = new SGDMomentum(trainer.model.parameters(), learningRate, beta);

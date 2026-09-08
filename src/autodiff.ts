@@ -18,7 +18,7 @@ export class Context{
         this.savedValues = savedValues;
     };
 
-    noGrad: boolean;;
+    noGrad: boolean;
     savedValues: any[];
 
     saveForBackward(...values: any[]): void {
