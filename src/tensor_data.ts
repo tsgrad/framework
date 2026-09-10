@@ -1,4 +1,4 @@
-import { zipWith, sum, mul } from "./operators";
+import { zipWith, sum, mul, max } from "./operators";
 
 export type OutIndex = number[];
 export type Shape = number[];
@@ -14,6 +14,22 @@ export function positionToIndex(ordinal: number, shape: Shape, outIndex: OutInde
     for(let i = shape.length - 1; i >= 0; i--){
         outIndex[i] = ordinal % shape[i];
         ordinal = Math.trunc(ordinal / shape[i]);
+    }
+}
+
+export function broadcastIndex(bigIndex: Index, bigShape: Shape, smallShape: Shape, smallIndex: OutIndex): void{
+    // Turns bigIndex into smallIndex, modifies smallIndex in place
+    smallIndex.length = 0; // Reset it just incase there was garbage in it before
+    let m = bigShape.length;
+    let n = smallShape.length;
+    let diff = m - n;
+    for (let i = 0; i < smallShape.length; i++){
+        if (smallShape[i] === 1)
+            smallIndex.push(0);
+        else if (smallShape[i] !== bigShape[i + diff])
+            throw "smallShape dimension " + i + " must be 1 or equal to bigShape dimension " + (i + diff);
+        else
+            smallIndex.push(bigIndex[i + diff]);
     }
 }
 
