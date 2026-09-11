@@ -6,6 +6,8 @@ export type Stride = number[];
 export type Index = number[];
 export type Storage = number[];
 
+export type UserShape = number[];
+
 export function indexToPosition(index: Index, strides: Stride): number{
     return sum(zipWith(mul)(index, strides));
 }
@@ -31,6 +33,28 @@ export function broadcastIndex(bigIndex: Index, bigShape: Shape, smallShape: Sha
         else
             smallIndex.push(bigIndex[i + diff]);
     }
+}
+
+export function shapeBroadcast(shape1: UserShape, shape2: UserShape): UserShape{
+    let i = shape1.length - 1, j = shape2.length - 1;
+    let res: UserShape = Array(max(shape1.length, shape2.length)).fill(0);
+    let k = res.length - 1;
+    for (; i >= 0 && j >= 0; i--, j--, k--){
+        if (shape1[i] === 1)
+            res[k] = shape2[j];
+        else if (shape2[j] !== 1 && shape1[i] !== shape2[j])
+            throw "shape1 dimension " + i + " must be 1 or equal to shape2 dimension " + j;
+        else
+            res[k] = shape1[i];
+    }
+
+    for(; i >= 0; i--, k--)
+        res[k] = shape1[i];
+
+    for(; j >= 0; j--, k--)
+        res[k] = shape2[j];
+
+    return res;
 }
 
 class TensorData{
