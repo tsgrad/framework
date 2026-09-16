@@ -87,3 +87,35 @@ export function tensorZip(func: (x: number, y: number) => number): (out: Storage
     }
     return zip;
 }
+
+export function tensorReduce(func: (x: number, y: number) => number, base: number): (out: Storage, outShape: Shape, outStride: Stride, aStorage: Storage, aShape: Shape, aStride: Stride, reduceDim: number) => void {
+    function reduce(out: Storage, outShape: Shape, outStride: Stride, aStorage: Storage, aShape: Shape, aStride: Stride, reduceDim: number): void{
+        if (reduceDim < 0 || reduceDim >= aShape.length)
+            throw "Invalid reduceDim, reduceDim must fall within bounds of aShape, got reduceDim: " + reduceDim + ", and aShape.length: " + aShape.length;
+        
+        let cells = prod(outShape);
+        out.length = cells;
+        let curpos: number[] = Array(outShape.length).fill(0);
+        for(let i = 0; i < cells; i++){
+            let cur = base;
+            let temp = curpos[reduceDim];
+            for (let j = 0; j < aShape[reduceDim]; j++){
+                
+                curpos[reduceDim] = j;
+                cur = func(cur, aStorage[indexToPosition(curpos, aStride)]);
+                
+            }
+            curpos[reduceDim] = temp;
+
+            out[indexToPosition(curpos, outStride)] = cur;
+            let x = 0;
+            curpos[0]++;
+            while(x < curpos.length - 1 && curpos[x] >= outShape[x]){
+                curpos[x + 1]++;
+                curpos[x] = 0;
+                x++;
+            } 
+        }
+    }
+    return reduce;
+}
