@@ -1,5 +1,32 @@
 import { Storage, Shape, Stride, indexToPosition, broadcastIndex} from "./tensor_data";
 import { mul, prod } from "./operators";
+import { Tensor } from "./tensor";
+
+type MapProto = (x: Tensor, out: Tensor | undefined) => Tensor;
+
+export class TensorOps{
+    static map(fn: (x: number) => number): MapProto{
+        throw "Subclasses must implement map";
+    }
+
+    static cmap(fn: (x: number) => number): (a: Tensor, b: Tensor) => Tensor{
+        throw "Subclasses must implement cmap";
+    }
+
+    static zip(fn: (x: number, y: number) => number): (a: Tensor, b: Tensor) => Tensor{
+        throw "Subclasses must implement zip";
+    }
+
+    static reduce(fn: (x: number, y: number) => number, start: number): (a: Tensor, b: number) => Tensor{
+        throw "Subclasses must implement reduce";
+    }
+
+    static matrixMultiply(a: Tensor, b: Tensor): Tensor{
+        throw "Subclasses must implement matrixMultiply";
+    }
+
+    cuda = false;
+}
 
 export function tensorMap(func: (x: number) => number): (out: Storage, outShape: Shape, outStride: Stride, inStorage: Storage, inShape: Storage, inStride: Stride) => void{
     function map(out: Storage, outShape: Shape, outStride: Stride, inStorage: Storage, inShape: Shape, inStride: Stride): void{
@@ -92,7 +119,7 @@ export function tensorReduce(func: (x: number, y: number) => number, base: numbe
     function reduce(out: Storage, outShape: Shape, outStride: Stride, aStorage: Storage, aShape: Shape, aStride: Stride, reduceDim: number): void{
         if (reduceDim < 0 || reduceDim >= aShape.length)
             throw "Invalid reduceDim, reduceDim must fall within bounds of aShape, got reduceDim: " + reduceDim + ", and aShape.length: " + aShape.length;
-        
+
         let cells = prod(outShape);
         out.length = cells;
         let curpos: number[] = Array(outShape.length).fill(0);
