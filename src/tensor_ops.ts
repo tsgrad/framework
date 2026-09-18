@@ -1,5 +1,5 @@
 import { Storage, Shape, Stride, indexToPosition, broadcastIndex} from "./tensor_data";
-import { mul, prod } from "./operators";
+import { id, isClose, reluBack, invBack, logBack, add, eq, exp, inv, leakyrelu, log, lt, mul, neg, relu, sigmoid, prod } from "./operators";
 import { Tensor } from "./tensor";
 
 type MapProto = (x: Tensor, out: Tensor | undefined) => Tensor;
@@ -25,7 +25,63 @@ export class TensorOps{
         throw "Subclasses must implement matrixMultiply";
     }
 
-    cuda = false;
+    cuda: boolean = false;
+}
+
+export class TensorBackend{
+    // Maps
+    negMap: Function;
+    sigmoidMap: Function;
+    reluMap: Function;
+    logMap: Function;
+    expMap: Function;
+    idMap: Function;
+    idCmap: Function;
+    invMap: Function;
+
+    // Zips
+    addZip: Function;
+    mulZip: Function;
+    ltZip: Function;
+    eqZip: Function;
+    isCloseZip: Function;
+    reluBackZip: Function;
+    logBackZip: Function;
+    invBackZip: Function;
+
+    // Reduce
+    addReduce: Function;
+    mulReduce: Function;
+    matrixMultiply: Function;
+    cuda: boolean;
+
+    constructor(ops: typeof TensorOps) {
+        // Maps
+        this.negMap = ops.map(neg);
+        this.sigmoidMap = ops.map(sigmoid);
+        this.reluMap = ops.map(relu);
+        this.logMap = ops.map(log);
+        this.expMap = ops.map(exp);
+        this.idMap = ops.map(id);
+        this.idCmap = ops.cmap(id);
+        this.invMap = ops.map(inv);
+
+        // Zips
+        this.addZip = ops.zip(add);
+        this.mulZip = ops.zip(mul);
+        this.ltZip = ops.zip(lt);
+        this.eqZip = ops.zip(eq);
+        this.isCloseZip = ops.zip(isClose);
+        this.reluBackZip = ops.zip(reluBack);
+        this.logBackZip = ops.zip(logBack);
+        this.invBackZip = ops.zip(invBack);
+
+        // Reduce
+        this.addReduce = ops.reduce(add, 0.0);
+        this.mulReduce = ops.reduce(mul, 1.0);
+        this.matrixMultiply = ops.matrixMultiply;
+        this.cuda = ops.cuda;
+    }
 }
 
 export function tensorMap(func: (x: number) => number): (out: Storage, outShape: Shape, outStride: Stride, inStorage: Storage, inShape: Storage, inStride: Stride) => void{
