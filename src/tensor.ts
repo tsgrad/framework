@@ -1,5 +1,6 @@
 import { Context } from "./autodiff";
 import { TensorData, UserShape } from "./tensor_data";
+import { TensorFunction } from "./tensor_functions";
 import { TensorBackend } from "./tensor_ops";
 
 export class History{
@@ -52,4 +53,29 @@ export class Tensor{
     shape(): UserShape{ return this._tensor._shape; }
     size(): number{ return this._tensor.size; }
     dims(): number{ return this._tensor.dims; }
+
+    detach(): Tensor{
+        return new Tensor(this._tensor, undefined, undefined, this.backend);
+    }
+
+    static apply(f: typeof TensorFunction, vals: Tensor[]): Tensor{
+        let rawVals: Tensor[] = [];
+        let needGrad = false;
+
+        for (const val of vals){
+            if (val.requiresGrad())
+                needGrad = true;
+            rawVals.push(val.detach());
+        }
+
+        // Create context
+        let ctx = new Context(!needGrad);
+
+        // Call forward with the variables
+        let c: Tensor = f.forward(ctx, ...rawVals);
+        
+        // Create new variable from the result with a new history
+        let history = new History(f, ctx, vals);
+        return new Tensor(c._tensor, history, undefined, c.backend);
+    }
 }
