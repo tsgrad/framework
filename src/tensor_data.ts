@@ -1,4 +1,4 @@
-import { zipWith, sum, mul, max } from "./operators";
+import { zipWith, sum, mul, max, prod } from "./operators";
 
 export type OutIndex = number[];
 export type Shape = number[];
@@ -7,6 +7,7 @@ export type Index = number[];
 export type Storage = number[];
 
 export type UserShape = number[];
+export type UserStrides = number[];
 
 export function indexToPosition(index: Index, strides: Stride): number{
     return sum(zipWith(mul)(index, strides));
@@ -57,14 +58,26 @@ export function shapeBroadcast(shape1: UserShape, shape2: UserShape): UserShape{
     return res;
 }
 
-class TensorData{
+export class TensorData{
     _storage: Storage;
     _shape: Shape;
     _stride: Stride;
-    constructor(storage: Storage, shape: Shape, stride: Stride){
+    strides: UserStrides;
+    shape: UserShape;
+    dims: number;
+    size: number;
+
+    constructor(storage: Storage, shape: Shape, strides: Stride){
         this._storage = storage;
         this._shape = shape;
-        this._stride = stride;
+        this._stride = strides;
+
+        this.strides = strides;
+        this.dims = strides.length;
+        this.size = prod(shape);
+        this.shape = shape;
+        if (this._storage.length != this.size)
+            throw "_storage.length not equal to this.size";
     }
 
     permute(...order: number[]): TensorData{
