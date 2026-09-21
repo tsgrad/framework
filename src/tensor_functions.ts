@@ -1,20 +1,91 @@
 import { Tensor } from "./tensor";
 import { Context } from "./autodiff";
 
-export class TensorFunction{
-    static forward(ctx: Context, ...inputs: Tensor[]): Tensor{
+export abstract class TensorFunction{
+    static forward(ctx: Context, ...t: Tensor[]): Tensor{
         throw new Error("Subclass must create forward");
     }
-    static backward(ctx: Context, ...t: Tensor[]): Tensor[]{
+    static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
         throw new Error("Subclass must create backward");
     }
 }
 
 export class Neg extends TensorFunction{
-    static forward(ctx: Context, ...inputs: Tensor[]): Tensor{
-        throw new Error("Subclass must create forward");
+    static forward(ctx: Context, a: Tensor): Tensor{
+        return a.f.negMap();
     }
-    static backward(ctx: Context, ...t: Tensor[]): Tensor[]{
-        return [t[0].f.negMap()]
+    static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
+        throw new Error("Subclass must create backward");
     }
 }
+
+export class Inv extends TensorFunction{
+    static forward(ctx: Context, a: Tensor): Tensor{
+        ctx.saveForBackward(a);
+        return a.f.invMap();
+    }
+    static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
+        throw new Error("Subclass must create backward");
+    }
+}
+
+export class Add extends TensorFunction{
+    static forward(ctx: Context, a: Tensor, b: Tensor): Tensor{
+        return a.f.addZip(a, b);
+    }
+    static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
+        throw new Error("Subclass must create backward");
+    }
+}
+
+export class Mul extends TensorFunction{
+    static forward(ctx: Context, a: Tensor, b: Tensor): Tensor{
+        ctx.saveForBackward(a, b);
+        return a.f.mulZip(a, b);
+    }
+    static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
+        throw new Error("Subclass must create backward");
+    }
+}
+
+export class Sigmoid extends TensorFunction{
+    static forward(ctx: Context, a: Tensor): Tensor{
+        let res = a.f.sigmoidMap(a);
+        ctx.saveForBackward(res);
+        return res;
+    }
+    static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
+        throw new Error("Subclass must create backward");
+    }
+}
+
+export class ReLU extends TensorFunction{
+    static forward(ctx: Context, a: Tensor): Tensor{
+        return a.f.reluMap(a);
+    }
+    static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
+        throw new Error("Subclass must create backward");
+    }
+}
+
+export class Log extends TensorFunction{
+    static forward(ctx: Context, a: Tensor): Tensor{
+        ctx.saveForBackward(a);
+        return a.f.logMap(a);
+    }
+    static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
+        throw new Error("Subclass must create backward");
+    }
+}
+
+export class Exp extends TensorFunction{
+    static forward(ctx: Context, a: Tensor): Tensor{
+        let res = a.f.expMap(a);
+        ctx.saveForBackward(res);
+        return res;
+    }
+    static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
+        throw new Error("Subclass must create backward");
+    }
+}
+
