@@ -123,13 +123,20 @@ export class IsClose extends TensorFunction{
     }
 }
 
-/* Once I add permute
-export class Permute extends TensorFunction{
-    static forward(ctx: Context, a: Tensor, order: Tensor): Tensor{
-        ctx.saveForBackward(a);
-        return new Tensor(permute(a, order));
-    }
-    static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
-        throw new Error("Subclass must create backward");
-    }
-}*/
+export function Permute(order: number[]): typeof TensorFunction {
+    return class extends TensorFunction {
+        static forward(ctx: Context, a: Tensor): Tensor {
+            return new Tensor(a._tensor.permute(...order), undefined, undefined, a.backend);
+        }
+
+        static backward(ctx: Context, gradOutput: Tensor): Tensor[] {
+            const inverseOrder = new Array(order.length);
+
+            for (let i = 0; i < order.length; i++) {
+                inverseOrder[order[i]!] = i;
+            }
+
+            return [new Tensor(gradOutput._tensor.permute(...inverseOrder), undefined, undefined, gradOutput.backend)];
+        }
+    };
+}
