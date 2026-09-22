@@ -15,7 +15,7 @@ export class Neg extends TensorFunction{
         return a.f.negMap();
     }
     static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
-        throw new Error("Subclass must create backward");
+        return [gradOutput.f.negMap(gradOutput)];
     }
 }
 
@@ -25,7 +25,8 @@ export class Inv extends TensorFunction{
         return a.f.invMap();
     }
     static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
-        throw new Error("Subclass must create backward");
+        let [a] = ctx.savedValues;
+        return [gradOutput.neg().div(a.mul(a))];
     }
 }
 
@@ -34,7 +35,7 @@ export class Add extends TensorFunction{
         return a.f.addZip(a, b);
     }
     static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
-        throw new Error("Subclass must create backward");
+        return [gradOutput, gradOutput];
     }
 }
 
@@ -44,7 +45,8 @@ export class Mul extends TensorFunction{
         return a.f.mulZip(a, b);
     }
     static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
-        throw new Error("Subclass must create backward");
+        let [a, b] = ctx.savedValues;
+        return [gradOutput.mul(b), gradOutput.mul(a)];
     }
 }
 
@@ -55,7 +57,8 @@ export class Sigmoid extends TensorFunction{
         return res;
     }
     static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
-        throw new Error("Subclass must create backward");
+        let [res] = ctx.savedValues;
+        return [gradOutput.mul(res).mul(res.neg().add(1))];
     }
 }
 
