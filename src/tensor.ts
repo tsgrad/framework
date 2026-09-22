@@ -4,11 +4,11 @@ import { Add, TensorFunction, Neg, Mul, Inv, LT, EQ, IsClose, Sigmoid, ReLU, Log
 import { TensorBackend } from "./tensor_ops";
 
 export class History{
-    lastFn : Function | undefined;
+    lastFn : typeof Function | undefined;
     ctx: Context | undefined;
     inputs: Tensor[];
 
-    constructor(lstFn: Function | undefined = undefined, ct: Context | undefined = undefined, inpts: Tensor[] = []){
+    constructor(lstFn: typeof Function | undefined = undefined, ct: Context | undefined = undefined, inpts: Tensor[] = []){
         this.lastFn = lstFn;
         this.ctx = ct;
         this.inputs = inpts;
@@ -148,7 +148,10 @@ export class Tensor{
         let c: Tensor = f.forward(ctx, ...rawVals);
         
         // Create new variable from the result with a new history
-        let history = new History(f, ctx, vals);
+        let history: History | undefined = undefined;
+        if (needGrad)
+            history = new History(f, ctx, vals);
+
         return new Tensor(c._tensor, history, undefined, c.backend);
     }
 }
