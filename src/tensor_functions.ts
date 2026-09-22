@@ -89,3 +89,47 @@ export class Exp extends TensorFunction{
     }
 }
 
+export class Sum extends TensorFunction{
+    static forward(ctx: Context, a: Tensor, dim: Tensor): Tensor{
+        ctx.saveForBackward(a.shape, dim);
+        return a.f.addReduce(a, dim.item());
+    }
+    static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
+        throw new Error("Subclass must create backward");
+    }
+}
+
+export class LT extends TensorFunction{
+    static forward(ctx: Context, a: Tensor, b: Tensor): Tensor{
+        return a.f.ltZip(a, b);
+    }
+    static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
+        throw new Error("Subclass must create backward");
+    }
+}
+
+export class EQ extends TensorFunction{
+    static forward(ctx: Context, a: Tensor, b: Tensor): Tensor{
+        return a.f.eqZip(a, b);
+    }
+    static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
+        throw new Error("Subclass must create backward");
+    }
+}
+
+export class IsClose extends TensorFunction{
+    static forward(ctx: Context, a: Tensor, b: Tensor): Tensor{
+        return a.f.isCloseZip(a, b);
+    }
+}
+
+/* Once I add permute
+export class Permute extends TensorFunction{
+    static forward(ctx: Context, a: Tensor, order: Tensor): Tensor{
+        ctx.saveForBackward(a);
+        return new Tensor(permute(a, order));
+    }
+    static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
+        throw new Error("Subclass must create backward");
+    }
+}*/

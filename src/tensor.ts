@@ -58,6 +58,13 @@ export class Tensor{
         return new Tensor(this._tensor, undefined, undefined, this.backend);
     }
 
+    item(): number{
+        if (this._tensor.size !== 1)
+            throw "item() called on tensor of size " + this._tensor.size;
+
+        return this._tensor._storage[0];
+    }
+
     static apply(f: typeof TensorFunction, vals: Tensor[]): Tensor{
         let rawVals: Tensor[] = [];
         let needGrad = false;
