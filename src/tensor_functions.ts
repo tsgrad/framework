@@ -71,6 +71,27 @@ export function isclose(a: TensorData, b: TensorData): TensorData{
     return out;
 }
 
+// for reducing
+export function sum(a: TensorData, dim: number): TensorData{
+    const outShape = [...a.shape];
+    if (dim < a.shape.length && dim >= 0)
+        outShape[dim] = 1;
+
+    const out = TensorData.fill(outShape, 0);
+    tensorReduce(operators.add, 0)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride, dim);
+    return out;
+}
+
+export function prod(a: TensorData, dim: number): TensorData{
+    const outShape = [...a.shape];
+    if (dim < a.shape.length && dim >= 0)
+        outShape[dim] = 1;
+
+    const out = TensorData.fill(outShape, 0);
+    tensorReduce(operators.mul, 1)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride, dim);
+    return out;
+}
+
 export abstract class TensorFunction{
     static forward(ctx: Context, ...t: Tensor[]): Tensor{
         throw new Error("Subclass must create forward");
