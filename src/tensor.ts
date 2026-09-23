@@ -1,14 +1,13 @@
 import { Context } from "./autodiff";
 import { TensorData, UserShape, Shape } from "./tensor_data";
 import { Add, TensorFunction, Neg, Mul, Inv, LT, EQ, IsClose, Sigmoid, ReLU, Log, Exp } from "./tensor_functions";
-import { TensorBackend } from "./tensor_ops";
 
 export class History{
-    lastFn : typeof Function | undefined;
+    lastFn : typeof TensorFunction | undefined;
     ctx: Context | undefined;
     inputs: Tensor[];
 
-    constructor(lstFn: typeof Function | undefined = undefined, ct: Context | undefined = undefined, inpts: Tensor[] = []){
+    constructor(lstFn: typeof TensorFunction | undefined = undefined, ct: Context | undefined = undefined, inpts: Tensor[] = []){
         this.lastFn = lstFn;
         this.ctx = ct;
         this.inputs = inpts;
@@ -20,31 +19,23 @@ export class Tensor{
     // Tensor is a generalization of Scalar in that it is a Variable that
     // handles multidimensional arrays.
 
-    backend: TensorBackend;
     history: History | undefined;
     grad: Tensor | undefined;
     _tensor: TensorData;
     uniqueId: number;
     name: string;
-    f: TensorBackend;
 
-    constructor(tensor: TensorData, history: History | undefined = undefined, 
-        name: string | undefined = undefined, backend: TensorBackend | undefined = undefined){
+    constructor(tensor: TensorData, history: History | undefined = undefined, name: string | undefined = undefined){
         _tensorCount++;
         this.uniqueId = _tensorCount;
-        if (backend === undefined)
-            throw "Backend must be defined when initializing Tensor";
 
         this._tensor = tensor;
         this.history = history;
-        this.backend = backend;
         this.grad = undefined;
         if (name !== undefined)
             this.name = name;
         else
             this.name = this.uniqueId.toString();
-
-        this.f = backend;
     }
 
     _requiresGrad(x: boolean): void{ this.history = new History(); }
@@ -55,7 +46,7 @@ export class Tensor{
     dims(): number{ return this._tensor.dims; }
 
     detach(): Tensor{
-        return new Tensor(this._tensor, undefined, undefined, this.backend);
+        return new Tensor(this._tensor);
     }
 
     item(): number{
@@ -69,7 +60,7 @@ export class Tensor{
         if (x instanceof Tensor)
             return x;
         else
-            return new Tensor(new TensorData([x], [1], [1]), undefined, undefined, this.backend)
+            return new Tensor(new TensorData([x], [1], [1]));
     }
 
     //functions
@@ -131,12 +122,12 @@ export class Tensor{
         return Tensor.apply(Exp, this);
     }
 
-    static zeros(backend: TensorBackend, shape: Shape): Tensor{
-        return new Tensor(TensorData.fill(shape, 0), undefined, undefined, backend);
+    static zeros(shape: Shape): Tensor{
+        return new Tensor(TensorData.fill(shape, 0));
     }
 
-    static ones(backend: TensorBackend, shape: Shape): Tensor{
-        return new Tensor(TensorData.fill(shape, 1), undefined, undefined, backend);
+    static ones(shape: Shape): Tensor{
+        return new Tensor(TensorData.fill(shape, 1));
     }
 
     static apply(f: typeof TensorFunction, ...vals: Tensor[]): Tensor{
@@ -160,6 +151,6 @@ export class Tensor{
         if (needGrad)
             history = new History(f, ctx, vals);
 
-        return new Tensor(c._tensor, history, undefined, c.backend);
+        return new Tensor(c._tensor, history);
     }
 }
