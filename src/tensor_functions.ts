@@ -220,16 +220,6 @@ export class Exp extends TensorFunction{
     }
 }
 
-export class Sum extends TensorFunction{
-    static forward(ctx: Context, a: Tensor, dim: Tensor): Tensor{
-        ctx.saveForBackward(a.shape, dim);
-        return a.f.addReduce(a, dim.item());
-    }
-    static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
-        return [gradOutput, gradOutput._ensureTensor(0.0)];
-    }
-}
-
 export class LT extends TensorFunction{
     static forward(ctx: Context, a: Tensor, b: Tensor): Tensor{
         return a.f.ltZip(a, b);
@@ -252,6 +242,19 @@ export class IsClose extends TensorFunction{
     static forward(ctx: Context, a: Tensor, b: Tensor): Tensor{
         return a.f.isCloseZip(a, b);
     }
+}
+
+export function Sum(dim: number): typeof TensorFunction {
+    return class extends TensorFunction {
+        static forward(ctx: Context, a: Tensor): Tensor {
+            ctx.saveForBackward(a);
+            return new Tensor(sum(a._tensor, dim));
+        }
+        static backward(ctx: Context, gradOutput: Tensor): Tensor[] {
+            let [a] = ctx.savedValues;
+            return [gradOutput.mul(Tensor.ones(a))];
+        }
+    };
 }
 
 export function Permute(order: number[]): typeof TensorFunction {
