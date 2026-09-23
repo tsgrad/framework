@@ -1,6 +1,6 @@
 import { Context } from "./autodiff";
 import { TensorData, UserShape, Shape } from "./tensor_data";
-import { Add, TensorFunction, Neg, Mul, Inv, LT, EQ, IsClose, Sigmoid, ReLU, Log, Exp } from "./tensor_functions";
+import { Add, TensorFunction, Neg, Mul, Inv, LT, EQ, IsClose, Sigmoid, ReLU, Log, Exp, Sum, Permute } from "./tensor_functions";
 
 export class History{
     lastFn : typeof TensorFunction | undefined;
@@ -120,6 +120,14 @@ export class Tensor{
 
     exp(): Tensor{
         return Tensor.apply(Exp, this);
+    }
+
+    sum(dim: number): Tensor{
+        return Tensor.apply(Sum(dim), this);
+    }
+
+    permute(...order: number[]): Tensor{
+        return Tensor.apply(Permute(order), this); 
     }
 
     static zeros(shape: Shape): Tensor{
