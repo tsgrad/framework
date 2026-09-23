@@ -1,5 +1,6 @@
 import { Tensor } from "./tensor";
 import { Context } from "./autodiff";
+import { lt } from "./operators";
 
 export abstract class TensorFunction{
     static forward(ctx: Context, ...t: Tensor[]): Tensor{
@@ -19,6 +20,7 @@ export class Neg extends TensorFunction{
     }
 }
 
+// I don't like it, and it's kinda messy using Tensor operations inside the Operation classes but it works...
 export class Inv extends TensorFunction{
     static forward(ctx: Context, a: Tensor): Tensor{
         ctx.saveForBackward(a);
@@ -64,10 +66,14 @@ export class Sigmoid extends TensorFunction{
 
 export class ReLU extends TensorFunction{
     static forward(ctx: Context, a: Tensor): Tensor{
+        ctx.saveForBackward(a);
         return a.f.reluMap(a);
     }
     static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
-        throw new Error("Subclass must create backward");
+        //let [a] = ctx.savedValues;
+        //let relumask = Tensor.zeros(gradOutput.backend, a._tensor.shape);
+        //currently broken will fix later
+        //return [gradOutput.mul(relumask)];
     }
 }
 
@@ -77,7 +83,8 @@ export class Log extends TensorFunction{
         return a.f.logMap(a);
     }
     static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
-        throw new Error("Subclass must create backward");
+        let [a] = ctx.savedValues;
+        return [gradOutput.div(a)];
     }
 }
 
@@ -88,7 +95,8 @@ export class Exp extends TensorFunction{
         return res;
     }
     static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
-        throw new Error("Subclass must create backward");
+        let [a] = ctx.savedValues;
+        return [gradOutput.mul(a)];
     }
 }
 
@@ -98,7 +106,7 @@ export class Sum extends TensorFunction{
         return a.f.addReduce(a, dim.item());
     }
     static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
-        throw new Error("Subclass must create backward");
+        return [gradOutput, gradOutput._ensureTensor(0.0)];
     }
 }
 
@@ -107,7 +115,7 @@ export class LT extends TensorFunction{
         return a.f.ltZip(a, b);
     }
     static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
-        throw new Error("Subclass must create backward");
+        return [gradOutput.mul(0)];
     }
 }
 
@@ -116,7 +124,7 @@ export class EQ extends TensorFunction{
         return a.f.eqZip(a, b);
     }
     static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
-        throw new Error("Subclass must create backward");
+        return [gradOutput.mul(0)];
     }
 }
 
@@ -135,9 +143,8 @@ export function Permute(order: number[]): typeof TensorFunction {
         static backward(ctx: Context, gradOutput: Tensor): Tensor[] {
             const inverseOrder = new Array(order.length);
 
-            for (let i = 0; i < order.length; i++) {
+            for (let i = 0; i < order.length; i++)
                 inverseOrder[order[i]!] = i;
-            }
 
             return [new Tensor(gradOutput._tensor.permute(...inverseOrder), undefined, undefined, gradOutput.backend)];
         }
