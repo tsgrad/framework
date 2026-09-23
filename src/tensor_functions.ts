@@ -1,5 +1,5 @@
 import { Tensor } from "./tensor";
-import { Shape, TensorData } from "./tensor_data";
+import { Shape, shapeBroadcast, TensorData } from "./tensor_data";
 import { Context } from "./autodiff";
 import * as operators from "./operators";
 import { tensorMap, tensorZip, tensorReduce } from "./tensor_ops";
@@ -47,32 +47,37 @@ export function id(a: TensorData): TensorData{
 }
 
 export function add(a: TensorData, b: TensorData): TensorData{
-    const out = TensorData.fill(a.shape, 0);
+    const outShape = shapeBroadcast(a._shape, b._shape);
+    const out = TensorData.fill(outShape, 0);
     tensorZip(operators.add)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride, b._storage, b._shape, b._stride);
     return out;
 }
 
 export function mul(a: TensorData, b: TensorData): TensorData{
-    const out = TensorData.fill(a.shape, 0);
+    const outShape = shapeBroadcast(a._shape, b._shape);
+    const out = TensorData.fill(outShape, 0);
     tensorZip(operators.mul)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride, b._storage, b._shape, b._stride);
     return out;
 }
 
 
 export function lt(a: TensorData, b: TensorData): TensorData{
-    const out = TensorData.fill(a.shape, 0);
+    const outShape = shapeBroadcast(a._shape, b._shape);
+    const out = TensorData.fill(outShape, 0);
     tensorZip(operators.lt)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride, b._storage, b._shape, b._stride);
     return out;
 }
 
 export function eq(a: TensorData, b: TensorData): TensorData{
-    const out = TensorData.fill(a.shape, 0);
+    const outShape = shapeBroadcast(a._shape, b._shape);
+    const out = TensorData.fill(outShape, 0);
     tensorZip(operators.eq)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride, b._storage, b._shape, b._stride);
     return out;
 }
 
 export function isclose(a: TensorData, b: TensorData): TensorData{
-    const out = TensorData.fill(a.shape, 0);
+    const outShape = shapeBroadcast(a._shape, b._shape);
+    const out = TensorData.fill(outShape, 0);
     tensorZip(operators.isClose)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride, b._storage, b._shape, b._stride);
     return out;
 }
