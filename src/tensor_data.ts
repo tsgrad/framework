@@ -67,7 +67,7 @@ export class TensorData{
     dims: number;
     size: number;
 
-    constructor(storage: Storage, shape: Shape, strides: Stride){
+    constructor(storage: Storage, shape: Shape, strides: Stride = TensorData.calculateStrides(shape)){
         this._storage = storage;
         this._shape = shape;
         this._stride = strides;
