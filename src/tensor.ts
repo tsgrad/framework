@@ -1,5 +1,5 @@
 import { Context } from "./autodiff";
-import { TensorData, UserShape } from "./tensor_data";
+import { TensorData, UserShape, Shape } from "./tensor_data";
 import { Add, TensorFunction, Neg, Mul, Inv, LT, EQ, IsClose, Sigmoid, ReLU, Log, Exp } from "./tensor_functions";
 import { TensorBackend } from "./tensor_ops";
 
@@ -129,6 +129,14 @@ export class Tensor{
 
     exp(): Tensor{
         return Tensor.apply(Exp, this);
+    }
+
+    static zeros(backend: TensorBackend, shape: Shape): Tensor{
+        return new Tensor(TensorData.fill(shape, 0), undefined, undefined, backend);
+    }
+
+    static ones(backend: TensorBackend, shape: Shape): Tensor{
+        return new Tensor(TensorData.fill(shape, 1), undefined, undefined, backend);
     }
 
     static apply(f: typeof TensorFunction, ...vals: Tensor[]): Tensor{

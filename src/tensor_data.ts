@@ -80,6 +80,22 @@ export class TensorData{
             throw "_storage.length not equal to this.size";
     }
 
+    static fill(shape: Shape, num: number = 0): TensorData{
+        let size = prod(shape);
+        let storage = Array(size).fill(num);
+        return new TensorData(storage, shape, TensorData.calculateStrides(shape));
+    }
+
+    static calculateStrides(shape: Shape): Stride{
+        let res: number[] = new Array(shape.length);
+        let stride = 1;
+        for (let i = shape.length - 1; i >= 0; i--) {
+            res[i] = stride;
+            stride *= shape[i]!;
+        }
+        return res;
+    }
+
     permute(...order: number[]): TensorData{
         if (order.length != this._shape.length)
             throw "Must give a position to each dimension but no more";
