@@ -131,12 +131,27 @@ export abstract class TensorFunction{
     }
 }
 
+export function unbroadcast(a: Tensor, original: Shape): Tensor{
+    let res = a;
+    while (res.dims() > original.length){ // first make shape length match (same num of dimensions)
+        res = res.sum(0); // shrink from the left, e.g., (shapes) og = [2, 1] res = [3, 2, 1] should cut off to res = [1, 2, 1]
+        res._tensor = view(res._tensor, res.shape().slice(1)); // then res = [2, 1]
+    }
+
+    for (let i = 0; i < original.length; i++){ // second reduce across each dimension as needed
+        if (original[i] === 1 && res.shape()[i] > 1)
+            res = res.sum(i);
+    }
+
+    return res;
+}
+
 export class Neg extends TensorFunction{
     static forward(ctx: Context, a: Tensor): Tensor{
-        return a.f.negMap();
+        return new Tensor(neg(a._tensor));
     }
     static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
-        return [gradOutput.f.negMap(gradOutput)];
+        return [gradOutput.neg()];
     }
 }
 
