@@ -1,5 +1,5 @@
 import { Tensor } from "./tensor";
-import { TensorData } from "./tensor_data";
+import { Shape, TensorData } from "./tensor_data";
 import { Context } from "./autodiff";
 import * as operators from "./operators";
 import { tensorMap, tensorZip, tensorReduce } from "./tensor_ops";
@@ -30,13 +30,19 @@ export function relu(a: TensorData): TensorData{
 
 export function log(a: TensorData): TensorData{
     const out = TensorData.fill(a.shape, 0);
-    tensorMap(operators.relu)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride);
+    tensorMap(operators.log)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride);
     return out;
 }
 
 export function exp(a: TensorData): TensorData{
     const out = TensorData.fill(a.shape, 0);
-    tensorMap(operators.relu)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride);
+    tensorMap(operators.exp)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride);
+    return out;
+}
+
+export function id(a: TensorData): TensorData{
+    const out = TensorData.fill(a.shape, 0);
+    tensorMap(operators.id)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride);
     return out;
 }
 
@@ -90,6 +96,25 @@ export function prod(a: TensorData, dim: number): TensorData{
     const out = TensorData.fill(outShape, 0);
     tensorReduce(operators.mul, 1)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride, dim);
     return out;
+}
+
+export function view(a: TensorData, shape: Shape): TensorData{
+    const stridesShouldBe = TensorData.calculateStrides(a._shape);
+    if (stridesShouldBe.every((val, idx) => {val === a._shape[idx]}) === false)
+        throw "view received non-contiguous Tensor, received: " + a;
+
+    const shapeSize = operators.prod(shape);
+    if (operators.prod(shape) !== operators.prod(a._shape))
+        throw "view received different sizes, received: " + a + " and shape: " + shape;
+
+    return new TensorData(a._storage, shape, stridesShouldBe);
+}
+
+export function tocontiguous(a: TensorData): TensorData{
+    const stridesShouldBe = TensorData.calculateStrides(a._shape);
+    if (stridesShouldBe.every((val, idx) => {val === a._shape[idx]}) === true)
+        return a; // already contiguous
+    return id(a);
 }
 
 export abstract class TensorFunction{
