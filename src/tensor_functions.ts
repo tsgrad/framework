@@ -1,6 +1,75 @@
 import { Tensor } from "./tensor";
+import { TensorData } from "./tensor_data";
 import { Context } from "./autodiff";
-import { lt } from "./operators";
+import * as operators from "./operators";
+import { tensorMap, tensorZip, tensorReduce } from "./tensor_ops";
+
+export function neg(a: TensorData): TensorData{
+    const out = TensorData.fill(a.shape, 0);
+    tensorMap(operators.neg)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride);
+    return out;
+}
+
+export function inv(a: TensorData): TensorData{
+    const out = TensorData.fill(a.shape, 0);
+    tensorMap(operators.inv)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride);
+    return out;
+}
+
+export function sigmoid(a: TensorData): TensorData{
+    const out = TensorData.fill(a.shape, 0);
+    tensorMap(operators.sigmoid)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride);
+    return out;
+}
+
+export function relu(a: TensorData): TensorData{
+    const out = TensorData.fill(a.shape, 0);
+    tensorMap(operators.relu)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride);
+    return out;
+}
+
+export function log(a: TensorData): TensorData{
+    const out = TensorData.fill(a.shape, 0);
+    tensorMap(operators.relu)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride);
+    return out;
+}
+
+export function exp(a: TensorData): TensorData{
+    const out = TensorData.fill(a.shape, 0);
+    tensorMap(operators.relu)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride);
+    return out;
+}
+
+export function add(a: TensorData, b: TensorData): TensorData{
+    const out = TensorData.fill(a.shape, 0);
+    tensorZip(operators.add)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride, b._storage, b._shape, b._stride);
+    return out;
+}
+
+export function mul(a: TensorData, b: TensorData): TensorData{
+    const out = TensorData.fill(a.shape, 0);
+    tensorZip(operators.mul)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride, b._storage, b._shape, b._stride);
+    return out;
+}
+
+
+export function lt(a: TensorData, b: TensorData): TensorData{
+    const out = TensorData.fill(a.shape, 0);
+    tensorZip(operators.lt)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride, b._storage, b._shape, b._stride);
+    return out;
+}
+
+export function eq(a: TensorData, b: TensorData): TensorData{
+    const out = TensorData.fill(a.shape, 0);
+    tensorZip(operators.eq)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride, b._storage, b._shape, b._stride);
+    return out;
+}
+
+export function isclose(a: TensorData, b: TensorData): TensorData{
+    const out = TensorData.fill(a.shape, 0);
+    tensorZip(operators.isClose)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride, b._storage, b._shape, b._stride);
+    return out;
+}
 
 export abstract class TensorFunction{
     static forward(ctx: Context, ...t: Tensor[]): Tensor{
