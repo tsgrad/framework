@@ -105,19 +105,18 @@ export function prod(a: TensorData, dim: number): TensorData{
 
 export function view(a: TensorData, shape: Shape): TensorData{
     const stridesShouldBe = TensorData.calculateStrides(a._shape);
-    if (stridesShouldBe.every((val, idx) => {val === a._shape[idx]}) === false)
+    if (stridesShouldBe.every((val, idx) => val === a._stride[idx]) === false)
         throw "view received non-contiguous Tensor, received: " + a;
 
-    const shapeSize = operators.prod(shape);
     if (operators.prod(shape) !== operators.prod(a._shape))
         throw "view received different sizes, received: " + a + " and shape: " + shape;
 
-    return new TensorData(a._storage, shape, stridesShouldBe);
+    return new TensorData(a._storage, shape);
 }
 
 export function tocontiguous(a: TensorData): TensorData{
     const stridesShouldBe = TensorData.calculateStrides(a._shape);
-    if (stridesShouldBe.every((val, idx) => {val === a._shape[idx]}) === true)
+    if (stridesShouldBe.every((val, idx) => val === a._stride[idx]) === true)
         return a; // already contiguous
     return id(a);
 }
