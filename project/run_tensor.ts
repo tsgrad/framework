@@ -6,9 +6,9 @@ import * as operators from "../src/operators"
 import { Graph } from "../src/datasets";
 import { Optimizer, SGD } from "../src/optim";
 
-function RParam(...shape: Shape): Parameter{
+function RParam(...shape: Shape): Tensor{
     // Random tensor where each cell is -1 to 1 with shape as the shape
-    return new Parameter(new Tensor(new TensorData(Array.from({ length: operators.prod(shape) }, () => randomFloat(-1, 1)), shape)));
+    return new Tensor(new TensorData(Array.from({ length: operators.prod(shape) }, () => randomFloat(-1, 1)), shape));
 }
 
 type ActivationFunction = "relu" | "sigmoid";
@@ -66,7 +66,7 @@ export class Linear extends Layer{
     forward(inputs: Tensor): Tensor{
         // we want output = [batchsize, outsize]
         return (this.weights.value as Tensor) // first need to reshape weights and inputs so they can be multiplied together
-            .view(1, ...(this.weights.value as Tensor).shape()) // now [insize, outsize] is [1, insize, outsize]
+            .view(1, this.inSize, this.outSize) // now [insize, outsize] is [1, insize, outsize]
             .mul(
                 inputs.view(...inputs.shape(), 1) // now inputs is [batchsize, insize, 1]
             ) // so we are multiplying [1, insize, outsize] * [batchsize, insize, 1] = [batchsize, insize, outsize]
