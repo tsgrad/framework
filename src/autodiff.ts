@@ -72,6 +72,9 @@ export function backpropagate(start: Variable, dStart: Variable): void{
         if (val.isLeaf()){
             val.accumulateDerivative(derivatives.get(val.uniqueId)!);
         }
+        else if (val.isConstant()){
+            continue;
+        }
         else{
             let valDerivatives = val.chainRule(derivatives.get(val.uniqueId));
             for (const [parent, d] of valDerivatives){
