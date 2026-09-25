@@ -64,7 +64,7 @@ export function tensorZip(func: (x: number, y: number) => number): (out: Storage
         }
         else{ // broadcasted
             if ((aShape.length > outShape.length || !aShape.every((dim, i) => (dim == 1 || dim == outShape[i + (outShape.length - aShape.length)])))
-            && (bShape.length > outShape.length || !bShape.every((dim, i) => (dim == 1 || dim == outShape[i + (outShape.length - bShape.length)]))))
+            || (bShape.length > outShape.length || !bShape.every((dim, i) => (dim == 1 || dim == outShape[i + (outShape.length - bShape.length)]))))
                 throw "aShape's # of dimensions must be less than outShape, and aShape's values have to be 1 or equal to outShape's";
 
             let cells = prod(outShape);
