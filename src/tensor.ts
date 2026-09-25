@@ -205,7 +205,7 @@ export class Tensor implements Variable{
         return res;
     }
 
-    backward(gradOutput: Tensor | undefined): void{
+    backward(gradOutput: Tensor | undefined = undefined): void{
         if (gradOutput === undefined)
             gradOutput = Tensor.ones(this.shape());
         backpropagate(this, gradOutput);

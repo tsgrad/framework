@@ -62,7 +62,17 @@ export class Linear extends Layer{
     }
 
     forward(inputs: Tensor): Tensor{
-        return inputs.mul(this.weights.value as Tensor).sum(0).add(this.bias.value as Tensor);
+        // we want output = [batchsize, outsize]
+        return (this.weights.value as Tensor) // first need to reshape weights and inputs so they can be multiplied together
+            .view(1, ...(this.weights.value as Tensor).shape()) // now [insize, outsize] is [1, insize, outsize]
+            .mul(
+                inputs.view(...inputs.shape(), 1) // now inputs is [batchsize, insize, 1]
+            ) // so we are multiplying [1, insize, outsize] * [batchsize, insize, 1] = [batchsize, insize, outsize]
+            .sum(1) // sum across insize so we have [batchsize, 1, outsize]
+            .view(inputs.shape()[0], this.outSize) // actually reduce the dimensions by using view so now we have [batchsize, outsize]
+            .add( // second we need to add bias [outsize]
+                this.bias.value as Tensor
+            ); // we can do [batchsize, outsize] + [outsize] since add will broadcast [outsize] to [batchsize, outsize]
     }
 }
 
