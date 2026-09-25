@@ -286,7 +286,7 @@ export function Sum(dim: number): typeof TensorFunction {
         }
         static backward(ctx: Context, gradOutput: Tensor): Tensor[] {
             let [a] = ctx.savedValues;
-            return [gradOutput.mul(Tensor.ones(a))];
+            return [gradOutput.mul(Tensor.ones(a.shape()))];
         }
     };
 }
