@@ -8,7 +8,9 @@ import { Optimizer, SGD } from "../src/optim";
 
 function RParam(...shape: Shape): Tensor{
     // Random tensor where each cell is -1 to 1 with shape as the shape
-    return new Tensor(new TensorData(Array.from({ length: operators.prod(shape) }, () => randomFloat(-1, 1)), shape));
+    const tensor = new Tensor(new TensorData(Array.from({ length: operators.prod(shape) }, () => randomFloat(-1, 1)), shape));
+    tensor._requiresGrad(true);
+    return tensor;
 }
 
 type ActivationFunction = "relu" | "sigmoid";
