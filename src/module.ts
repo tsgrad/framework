@@ -1,12 +1,11 @@
 import { Variable } from "./autodiff";
-import { Scalar } from "./scalar";
 
 export class Parameter{
     /*
     A Parameter is a special container stored in a `Module`.
     */
 
-    public value: Scalar;
+    public value: Variable;
     public name: string | undefined;
 
     constructor(x: any, name?: string){
