@@ -29,10 +29,10 @@ export class Network3 extends Network{
 export class Network6 extends Network{
     constructor(){
         super();
-        this.addLayer(Linear, "leakyrelu", 2, 10);
-        this.addLayer(Linear, "leakyrelu", 10, 10);
-        this.addLayer(Linear, "leakyrelu", 10, 10);
-        this.addLayer(Linear, "leakyrelu", 10, 10);
+        this.addLayer(Linear, "relu", 2, 10);
+        this.addLayer(Linear, "relu", 10, 10);
+        this.addLayer(Linear, "relu", 10, 10);
+        this.addLayer(Linear, "relu", 10, 10);
         this.addLayer(Linear, "sigmoid", 10, 1);
     }
 }

@@ -1,8 +1,8 @@
 import { Module, Parameter } from "../src/module";
 import { randomFloat } from "../src/helperfunctions";
-import { Scalar } from "../src/scalar";
+import { Scalar, ScalarHistory } from "../src/scalar";
 import { Graph, datasets } from "../src/datasets";
-import { Optimizer, SGD } from "../src/optim";
+import { Optimizer, SGD, SGDMomentum } from "../src/optim";
 
 
 type ActivationFunction = "relu" | "leakyrelu" | "sigmoid";
@@ -58,21 +58,21 @@ export class Linear extends Layer{
         for (let i = 0; i < inSize; i++){
             this.weights.push([]);
             for (let j = 0; j < outSize; j++){
-                this.weights[i].push(this.addParameter(`weight_${i}_${j}`, new Scalar(randomFloat(-1, 1))));
+                this.weights[i].push(this.addParameter(`weight_${i}_${j}`, new Scalar(randomFloat(-1, 1), new ScalarHistory())));
             }
         }
         for (let j = 0; j < outSize; j++)
-            this.bias.push(this.addParameter(`bias_${j}`, new Scalar(randomFloat(-1, 1))));
+            this.bias.push(this.addParameter(`bias_${j}`, new Scalar(randomFloat(-1, 1), new ScalarHistory())));
     }
 
     forward(inputs: Scalar[]): Scalar[]{
         let y: Scalar[] = [];
         for (let i = 0; i < this.bias.length; i++)
-            y.push(this.bias[i].value);
+            y.push(this.bias[i].value as Scalar);
 
         for (let i = 0; i < inputs.length; i++){
             for (let j = 0; j < y.length; j++)
-                y[j] = y[j].add(inputs[i].mul(this.weights[i][j].value));
+                y[j] = y[j].add(inputs[i].mul(this.weights[i][j].value as Scalar));
         }
         return y;
     }
@@ -109,6 +109,7 @@ export class ScalarTrain{
         const starttime = performance.now();
         this.learningRate = learningRate;
         this.maxEpochs = maxEpochs;
+        this.optim = new SGDMomentum(this.model.parameters(), this.learningRate);
     
         let losses: number[] = [];
         for (let epoch = 1; epoch < maxEpochs + 1; epoch++){
@@ -145,7 +146,7 @@ export class ScalarTrain{
 
             this.optim.step();
 
-            if (epoch % 5 === 0 || epoch == maxEpochs)
+            if (epoch % 10 === 0 || epoch == maxEpochs)
                 logFn(epoch, totalLoss, correct, losses);
         }
 
