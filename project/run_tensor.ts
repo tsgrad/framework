@@ -3,6 +3,8 @@ import { Module, Parameter } from "../src/module"
 import { Tensor } from "../src/tensor";
 import { Shape, TensorData } from "../src/tensor_data"
 import * as operators from "../src/operators"
+import { Graph } from "../src/datasets";
+import { Optimizer, SGD } from "../src/optim";
 
 function RParam(...shape: Shape): Parameter{
     // Random tensor where each cell is -1 to 1 with shape as the shape
@@ -86,4 +88,61 @@ export class SimpleNetwork extends Network {
 
 function defaultLogFn(epoch: number, totalLoss: number, correct: number, losses: number): void{
     console.log(`Epoch ${epoch} loss ${totalLoss} correct ${correct}`);
+}
+
+export class TensorTrain{
+    learningRate: number = 0;
+    maxEpochs: number = 0;
+    model: Network;
+    optim: Optimizer;
+
+    constructor(){
+        this.model = new SimpleNetwork();
+        this.optim = new SGD(this.model.parameters());
+    }
+
+    runOne(x: number[]): Tensor{
+        return this.model.forward(new Tensor(new TensorData(x, [1, x.length])));
+    }
+
+    runMany(x: number[][]): Tensor{
+        return this.model.forward(new Tensor(new TensorData(x.flat(), [x.length, x[0].length])));
+    }
+
+    train(data: Graph, learningRate: number, maxEpochs: number = 500, logFn: Function = defaultLogFn): void{
+        this.optim = new SGD(this.model.parameters(), learningRate);
+        this.learningRate = learningRate;
+        this.maxEpochs = maxEpochs;
+        let losses: number[] = [];
+
+        const starttime = performance.now();
+
+        for (let epoch = 1; epoch < maxEpochs + 1; epoch++){
+            let totalLoss = 0;
+            let correct = 0;
+            this.optim.zeroGrad();
+            
+            let x = new Tensor(new TensorData(data.x.flat(), [data.x.length, data.x[0].length]));
+            let y = new Tensor(new TensorData(data.y, [data.y.length]));
+
+            let out: Tensor = this.model.forward(x).view(data.n);
+            let prob = (out.mul(y)).add((out.sub(1).mul(y.sub(1))));
+            let loss: Tensor = prob.log().neg();
+            // backpropagate
+            (loss.div(data.n)).sum(0).view(1).backward();
+            
+            totalLoss = loss.sum(0).view(1).data._storage[0];
+            losses.push(totalLoss);
+
+            this.optim.step();
+
+            if (epoch % 10 === 0 || epoch == maxEpochs){
+                let correct: number = (out.detach().gt(0.5).eq(y)).sum(0).data._storage[0];
+                logFn(epoch, totalLoss, correct, losses);
+            }
+        }
+
+        const endtime = performance.now();
+        console.log(`Time to train took ${endtime - starttime}`);
+    }
 }
