@@ -49,6 +49,14 @@ export class Tensor{
         return new Tensor(this._tensor);
     }
 
+    isLeaf(): boolean{
+        return this.history !== undefined && this.history.lastFn === undefined;
+    }
+
+    isConstant(): boolean{
+        return this.history === undefined;
+    }
+
     item(): number{
         if (this._tensor.size !== 1)
             throw "item() called on tensor of size " + this._tensor.size;
@@ -169,4 +177,28 @@ export class Tensor{
 
         return new Tensor(c._tensor, history);
     }
+
+    accumulateDerivative(grad: Tensor): void{
+        if (this.grad === undefined)
+            this.grad = grad;
+        else
+            this.grad = this.grad.add(grad);
+    }
+
+    chainRule(gradOutput: Tensor): [Tensor, Tensor][]{
+        if (this.history === undefined || this.history.lastFn === undefined || this.history.ctx === undefined)
+            throw "chainRule called with incomplete history";
+
+        const grads: Tensor[] = this.history.lastFn.backward(this.history.ctx, gradOutput);
+
+        if (grads.length != this.history.inputs.length)
+            throw "backward gave grads with dimension size " + grads.length + " but expected " + this.history.inputs.length;
+
+        const res: [Tensor, Tensor][] = [];
+        for (let i = 0; i < this.history.inputs.length; i++)
+            res.push([this.history.inputs[i], grads[i]]);
+
+        return res;
+    }
+
 }
