@@ -1,4 +1,4 @@
-import { Context } from "./autodiff";
+import { Context, Variable } from "./autodiff";
 import { TensorData, UserShape, Shape } from "./tensor_data";
 import { Add, TensorFunction, Neg, Mul, Inv, LT, EQ, IsClose, Sigmoid, ReLU, Log, Exp, Sum, Permute, ToContiguous, View } from "./tensor_functions";
 
@@ -15,13 +15,13 @@ export class History{
 }
 
 var _tensorCount = 0;
-export class Tensor{
+export class Tensor implements Variable{
     // Tensor is a generalization of Scalar in that it is a Variable that
     // handles multidimensional arrays.
 
     history: History | undefined;
     grad: Tensor | undefined;
-    _tensor: TensorData;
+    data: TensorData;
     uniqueId: number;
     name: string;
 
@@ -29,7 +29,7 @@ export class Tensor{
         _tensorCount++;
         this.uniqueId = _tensorCount;
 
-        this._tensor = tensor;
+        this.data = tensor;
         this.history = history;
         this.grad = undefined;
         if (name !== undefined)
@@ -41,12 +41,12 @@ export class Tensor{
     _requiresGrad(x: boolean): void{ this.history = new History(); }
     requiresGrad(): boolean { return this.history !== undefined; }
 
-    shape(): UserShape{ return this._tensor._shape; }
-    size(): number{ return this._tensor.size; }
-    dims(): number{ return this._tensor.dims; }
+    shape(): UserShape{ return this.data._shape; }
+    size(): number{ return this.data.size; }
+    dims(): number{ return this.data.dims; }
 
     detach(): Tensor{
-        return new Tensor(this._tensor);
+        return new Tensor(this.data);
     }
 
     isLeaf(): boolean{
@@ -57,11 +57,15 @@ export class Tensor{
         return this.history === undefined;
     }
 
-    item(): number{
-        if (this._tensor.size !== 1)
-            throw "item() called on tensor of size " + this._tensor.size;
+    parents(): Tensor[]{
+        return this.history?.inputs ?? [];
+    }
 
-        return this._tensor._storage[0];
+    item(): number{
+        if (this.data.size !== 1)
+            throw "item() called on tensor of size " + this.data.size;
+
+        return this.data._storage[0];
     }
 
     _ensureTensor(x: Tensor | number){
@@ -175,7 +179,7 @@ export class Tensor{
         if (needGrad)
             history = new History(f, ctx, vals);
 
-        return new Tensor(c._tensor, history);
+        return new Tensor(c.data, history);
     }
 
     accumulateDerivative(grad: Tensor): void{

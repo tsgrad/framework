@@ -147,7 +147,7 @@ export function unbroadcast(a: Tensor, original: Shape): Tensor{
 
 export class Neg extends TensorFunction{
     static forward(ctx: Context, a: Tensor): Tensor{
-        return new Tensor(neg(a._tensor));
+        return new Tensor(neg(a.data));
     }
     static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
         return [gradOutput.neg()];
@@ -158,7 +158,7 @@ export class Neg extends TensorFunction{
 export class Inv extends TensorFunction{
     static forward(ctx: Context, a: Tensor): Tensor{
         ctx.saveForBackward(a);
-        return new Tensor(inv(a._tensor));
+        return new Tensor(inv(a.data));
     }
     static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
         let [a] = ctx.savedValues;
@@ -169,7 +169,7 @@ export class Inv extends TensorFunction{
 export class Add extends TensorFunction{
     static forward(ctx: Context, a: Tensor, b: Tensor): Tensor{
         ctx.saveForBackward(a, b);
-        return new Tensor(add(a._tensor, b._tensor));
+        return new Tensor(add(a.data, b.data));
     }
     static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
         let [a, b] = ctx.savedValues;
@@ -180,7 +180,7 @@ export class Add extends TensorFunction{
 export class Mul extends TensorFunction{
     static forward(ctx: Context, a: Tensor, b: Tensor): Tensor{
         ctx.saveForBackward(a, b);
-        return new Tensor(mul(a._tensor, b._tensor));
+        return new Tensor(mul(a.data, b.data));
     }
     static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
         let [a, b] = ctx.savedValues;
@@ -190,7 +190,7 @@ export class Mul extends TensorFunction{
 
 export class Sigmoid extends TensorFunction{
     static forward(ctx: Context, a: Tensor): Tensor{
-        let res = new Tensor(sigmoid(a._tensor));
+        let res = new Tensor(sigmoid(a.data));
         ctx.saveForBackward(res);
         return res;
     }
@@ -203,11 +203,11 @@ export class Sigmoid extends TensorFunction{
 export class ReLU extends TensorFunction{
     static forward(ctx: Context, a: Tensor): Tensor{
         ctx.saveForBackward(a);
-        return new Tensor(relu(a._tensor));
+        return new Tensor(relu(a.data));
     }
     static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
         let [a] = ctx.savedValues;
-        let relumask = new Tensor(lt(TensorData.fill(a._tensor.shape, 0), a._tensor)); // relumask[i] = 1 if a[i] > zeros[i] else 0
+        let relumask = new Tensor(lt(TensorData.fill(a.data.shape, 0), a.data)); // relumask[i] = 1 if a[i] > zeros[i] else 0
         return [gradOutput.mul(relumask)];
     }
 }
@@ -215,7 +215,7 @@ export class ReLU extends TensorFunction{
 export class Log extends TensorFunction{
     static forward(ctx: Context, a: Tensor): Tensor{
         ctx.saveForBackward(a);
-        return new Tensor(log(a._tensor));
+        return new Tensor(log(a.data));
     }
     static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
         let [a] = ctx.savedValues;
@@ -225,7 +225,7 @@ export class Log extends TensorFunction{
 
 export class Exp extends TensorFunction{
     static forward(ctx: Context, a: Tensor): Tensor{
-        let res = new Tensor(exp(a._tensor));
+        let res = new Tensor(exp(a.data));
         ctx.saveForBackward(res);
         return res;
     }
@@ -238,7 +238,7 @@ export class Exp extends TensorFunction{
 export class LT extends TensorFunction{
     static forward(ctx: Context, a: Tensor, b: Tensor): Tensor{
         ctx.saveForBackward(a, b);
-        return new Tensor(lt(a._tensor, b._tensor));
+        return new Tensor(lt(a.data, b.data));
     }
     static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
         let [a, b] = ctx.savedValues;
@@ -249,7 +249,7 @@ export class LT extends TensorFunction{
 export class EQ extends TensorFunction{
     static forward(ctx: Context, a: Tensor, b: Tensor): Tensor{
         ctx.saveForBackward(a, b);
-        return new Tensor(eq(a._tensor, b._tensor));
+        return new Tensor(eq(a.data, b.data));
     }
     static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
         let [a, b] = ctx.savedValues;
@@ -260,7 +260,7 @@ export class EQ extends TensorFunction{
 export class IsClose extends TensorFunction{
     static forward(ctx: Context, a: Tensor, b: Tensor): Tensor{
         ctx.saveForBackward(a, b);
-        return new Tensor(isclose(a._tensor, b._tensor));
+        return new Tensor(isclose(a.data, b.data));
     }
 
     static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
@@ -271,7 +271,7 @@ export class IsClose extends TensorFunction{
 
 export class ToContiguous extends TensorFunction {
     static forward(ctx: Context, a: Tensor): Tensor {
-        return new Tensor(tocontiguous(a._tensor));
+        return new Tensor(tocontiguous(a.data));
     }
     static backward(ctx: Context, gradOutput: Tensor): Tensor[] {
         return [gradOutput];
@@ -282,7 +282,7 @@ export function Sum(dim: number): typeof TensorFunction {
     return class extends TensorFunction {
         static forward(ctx: Context, a: Tensor): Tensor {
             ctx.saveForBackward(a);
-            return new Tensor(sum(a._tensor, dim));
+            return new Tensor(sum(a.data, dim));
         }
         static backward(ctx: Context, gradOutput: Tensor): Tensor[] {
             let [a] = ctx.savedValues;
@@ -294,7 +294,7 @@ export function Sum(dim: number): typeof TensorFunction {
 export function Permute(order: number[]): typeof TensorFunction {
     return class extends TensorFunction {
         static forward(ctx: Context, a: Tensor): Tensor {
-            return new Tensor(a._tensor.permute(...order));
+            return new Tensor(a.data.permute(...order));
         }
 
         static backward(ctx: Context, gradOutput: Tensor): Tensor[] {
@@ -303,7 +303,7 @@ export function Permute(order: number[]): typeof TensorFunction {
             for (let i = 0; i < order.length; i++)
                 inverseOrder[order[i]!] = i;
 
-            return [new Tensor(gradOutput._tensor.permute(...inverseOrder))];
+            return [new Tensor(gradOutput.data.permute(...inverseOrder))];
         }
     };
 }
@@ -312,7 +312,7 @@ export function View(newShape: Shape): typeof TensorFunction {
     return class extends TensorFunction {
         static forward(ctx: Context, a: Tensor): Tensor {
             ctx.saveForBackward(a);
-            return new Tensor(view(a._tensor, newShape));
+            return new Tensor(view(a.data, newShape));
         }
         static backward(ctx: Context, gradOutput: Tensor): Tensor[] {
             let [a] = ctx.savedValues;

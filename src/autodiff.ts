@@ -35,7 +35,7 @@ export class Context{
 export interface Variable{
     uniqueId: number;
     history: any;
-    data: number;
+    data: any;
     accumulateDerivative(x: any): void;
     isLeaf(): boolean;
     isConstant(): boolean;
