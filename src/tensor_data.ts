@@ -32,7 +32,7 @@ export function broadcastIndex(bigIndex: Index, bigShape: Shape, smallShape: Sha
         else if (smallShape[i] !== bigShape[i + diff])
             throw "smallShape dimension " + i + " must be 1 or equal to bigShape dimension " + (i + diff);
         else
-            smallIndex.push(smallShape[i]);
+            smallIndex.push(bigIndex[i + diff]);
     }
 }
 
