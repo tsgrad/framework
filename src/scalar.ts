@@ -30,7 +30,7 @@ export class Scalar implements Variable{
     uniqueId: number;
     name: string;
 
-    constructor(data: number, history: ScalarHistory = new ScalarHistory(), name: string | undefined = undefined){
+    constructor(data: number, history: ScalarHistory | undefined = undefined, name: string | undefined = undefined){
         Scalar._varCount++;
         this.uniqueId = Scalar._varCount;
         this.data = data;
@@ -150,9 +150,7 @@ export class Scalar implements Variable{
     }
 
     parents(): Scalar[]{
-        if (this.history === undefined)
-            throw new Error("history is undefined");
-        return this.history.inputs;
+        return this.history?.inputs ?? [];
     }
 
     chainRule(gradient: number): [Variable, number][]{
@@ -170,7 +168,7 @@ export class Scalar implements Variable{
     }
 
     backward(dOutput: number = 1.0){
-        backpropagate(this, new Scalar(dOutput));
+        backpropagate(this, dOutput);
     }
 }
 

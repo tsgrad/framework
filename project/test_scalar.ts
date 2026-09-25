@@ -81,7 +81,7 @@ export function test6(): void{
 
     let scalarTrain = new ScalarTrain();
     scalarTrain.model = new Network6();
-    new ScalarTrain().train(data, RATE, 10000);
+    scalarTrain.train(data, RATE, 100);
 }
 
 test6();

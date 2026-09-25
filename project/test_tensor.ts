@@ -49,7 +49,7 @@ export function test6(): void{
 
     let tensorTrain = new TensorTrain();
     tensorTrain.model = new Network6();
-    tensorTrain.train(data, RATE, 10000);
+    tensorTrain.train(data, RATE, 100);
 }
 
 test6();

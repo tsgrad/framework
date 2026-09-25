@@ -63,9 +63,9 @@ export function topologicalSort(variable: Variable): Variable[] {
     return res.reverse();
 }
 
-export function backpropagate(start: Variable, dStart: Variable): void{
+export function backpropagate(start: Variable, dStart: any): void{
     let order: Variable[] = topologicalSort(start);
-    let derivatives: Map<number, Variable> = new Map<number, Variable>();
+    let derivatives: Map<number, any> = new Map<number, any>();
     derivatives.set(start.uniqueId, dStart);
 
     for (const val of order){
@@ -78,9 +78,12 @@ export function backpropagate(start: Variable, dStart: Variable): void{
         else{
             let valDerivatives = val.chainRule(derivatives.get(val.uniqueId));
             for (const [parent, d] of valDerivatives){
-                let cur: Variable | undefined = derivatives.get(parent.uniqueId);
+                const cur = derivatives.get(parent.uniqueId);
                 if (cur === undefined){
                     derivatives.set(parent.uniqueId, d);
+                }
+                else if (typeof cur === "number"){
+                    derivatives.set(parent.uniqueId, cur + d);
                 }
                 else{
                     derivatives.set(parent.uniqueId, cur.add(d));

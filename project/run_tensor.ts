@@ -4,7 +4,7 @@ import { Tensor } from "../src/tensor";
 import { Shape, TensorData } from "../src/tensor_data"
 import * as operators from "../src/operators"
 import { Graph } from "../src/datasets";
-import { Optimizer, SGD } from "../src/optim";
+import { Optimizer, SGD, SGDMomentum } from "../src/optim";
 
 function RParam(...shape: Shape): Tensor{
     // Random tensor where each cell is -1 to 1 with shape as the shape
@@ -112,7 +112,7 @@ export class TensorTrain{
     }
 
     train(data: Graph, learningRate: number, maxEpochs: number = 500, logFn: Function = defaultLogFn): void{
-        this.optim = new SGD(this.model.parameters(), learningRate);
+        this.optim = new SGDMomentum(this.model.parameters(), learningRate);
         this.learningRate = learningRate;
         this.maxEpochs = maxEpochs;
         let losses: number[] = [];
