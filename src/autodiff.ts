@@ -40,6 +40,7 @@ export interface Variable{
     isLeaf(): boolean;
     isConstant(): boolean;
     parents(): Variable[];
+    add(b: Variable | number): Variable;
     chainRule(dOutput: any): [Variable, any][];
 }
 
@@ -62,9 +63,9 @@ export function topologicalSort(variable: Variable): Variable[] {
     return res.reverse();
 }
 
-export function backpropagate(start: Variable, dStart: number = 1): void{
+export function backpropagate(start: Variable, dStart: Variable): void{
     let order: Variable[] = topologicalSort(start);
-    let derivatives: Map<number, number> = new Map<number, number>();
+    let derivatives: Map<number, Variable> = new Map<number, Variable>();
     derivatives.set(start.uniqueId, dStart);
 
     for (const val of order){
@@ -72,14 +73,14 @@ export function backpropagate(start: Variable, dStart: number = 1): void{
             val.accumulateDerivative(derivatives.get(val.uniqueId)!);
         }
         else{
-            let valDerivatives: [Variable, number][] = val.chainRule(derivatives.get(val.uniqueId));
+            let valDerivatives = val.chainRule(derivatives.get(val.uniqueId));
             for (const [parent, d] of valDerivatives){
-                let cur: number | undefined = derivatives.get(parent.uniqueId);
+                let cur: Variable | undefined = derivatives.get(parent.uniqueId);
                 if (cur === undefined){
                     derivatives.set(parent.uniqueId, d);
                 }
                 else{
-                    derivatives.set(parent.uniqueId, cur + d);
+                    derivatives.set(parent.uniqueId, cur.add(d));
                 }
             }
         }

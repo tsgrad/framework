@@ -1,4 +1,4 @@
-import { Context, Variable } from "./autodiff";
+import { backpropagate, Context, Variable } from "./autodiff";
 import { TensorData, UserShape, Shape } from "./tensor_data";
 import { Add, TensorFunction, Neg, Mul, Inv, LT, EQ, IsClose, Sigmoid, ReLU, Log, Exp, Sum, Permute, ToContiguous, View } from "./tensor_functions";
 
@@ -205,4 +205,9 @@ export class Tensor implements Variable{
         return res;
     }
 
+    backward(gradOutput: Tensor | undefined): void{
+        if (gradOutput === undefined)
+            gradOutput = Tensor.ones(this.shape());
+        backpropagate(this, gradOutput);
+    }
 }

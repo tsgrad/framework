@@ -170,7 +170,7 @@ export class Scalar implements Variable{
     }
 
     backward(dOutput: number = 1.0){
-        backpropagate(this, dOutput);
+        backpropagate(this, new Scalar(dOutput));
     }
 }
 
