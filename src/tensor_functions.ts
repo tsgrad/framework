@@ -2,7 +2,9 @@ import { Tensor } from "./tensor.js";
 import { Shape, shapeBroadcast, TensorData } from "./tensor_data.js";
 import { Context } from "./autodiff.js";
 import * as operators from "./operators.js";
-import { tensorMap, tensorZip, tensorReduce } from "./tensor_ops.js";
+// swap out if wanted, tensor_ops has non-multithreaded, the fastTensor stuff is multithreaded
+//import { tensorMap, tensorZip, tensorReduce } from "./tensor_ops.js";
+import {fastTensorMap as tensorMap, fastTensorZip as tensorZip, fastTensorReduce as tensorReduce} from "./fast_ops.js";
 
 export function neg(a: TensorData): TensorData{
     const out = TensorData.fill(a.shape, 0);

@@ -6,9 +6,19 @@ import * as operators from "../src/operators.js"
 import { Graph } from "../src/datasets.js";
 import { Optimizer, SGD, SGDMomentum } from "../src/optim.js";
 
+function sharedTensorData(values: ArrayLike<number>, shape: Shape): TensorData {
+    const data = TensorData.fill(shape);
+    data._storage.set(values);
+    return data;
+}
+
 function RParam(...shape: Shape): Tensor{
     // Random tensor where each cell is -1 to 1 with shape as the shape
-    const tensor = new Tensor(new TensorData(new Float32Array(Array.from({ length: operators.prod(shape) }, () => randomFloat(-1, 1))), shape));
+    const data = TensorData.fill(shape);
+    for (let i = 0; i < data._storage.length; i++) {
+        data._storage[i] = randomFloat(-1, 1);
+    }
+    const tensor = new Tensor(data);
     tensor._requiresGrad(true);
     return tensor;
 }
@@ -104,11 +114,11 @@ export class TensorTrain{
     }
 
     runOne(x: number[]): Tensor{
-        return this.model.forward(new Tensor(new TensorData(new Float32Array(x), [1, x.length])));
+        return this.model.forward(new Tensor(sharedTensorData(x, [1, x.length])));
     }
 
     runMany(x: number[][]): Tensor{
-        return this.model.forward(new Tensor(new TensorData(new Float32Array(x.flat()), [x.length, x[0].length])));
+        return this.model.forward(new Tensor(sharedTensorData(x.flat(), [x.length, x[0].length])));
     }
 
     train(data: Graph, learningRate: number, maxEpochs: number = 500, logFn: Function = defaultLogFn): void{
@@ -124,8 +134,8 @@ export class TensorTrain{
             let correct = 0;
             this.optim.zeroGrad();
             
-            let x = new Tensor(new TensorData(new Float32Array(data.x.flat()), [data.x.length, data.x[0].length]));
-            let y = new Tensor(new TensorData(new Float32Array(data.y), [data.y.length]));
+            let x = new Tensor(sharedTensorData(data.x.flat(), [data.x.length, data.x[0].length]));
+            let y = new Tensor(sharedTensorData(data.y, [data.y.length]));
 
             let out: Tensor = this.model.forward(x).view(data.n);
             let prob = (out.mul(y)).add((out.sub(1).mul(y.sub(1))));

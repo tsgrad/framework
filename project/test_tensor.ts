@@ -1,5 +1,6 @@
 import { datasets } from "../src/datasets.js";
 import { Linear, Network, TensorTrain } from "./run_tensor.js";
+import { destroyPool } from "../src/fast_ops.js";
 
 
 export class Network1 extends Network{
@@ -29,6 +30,15 @@ export class Network6 extends Network{
     }
 }
 
+export class NetworkMultithreaded extends Network{
+    constructor(){
+        super();
+        this.addLayer(Linear, "relu", 2, 64);
+        this.addLayer(Linear, "relu", 64, 64);
+        this.addLayer(Linear, "sigmoid", 64, 1);
+    }
+}
+
 // Test 1
 export function test1(): void{
     console.log("Test 1");
@@ -37,7 +47,7 @@ export function test1(): void{
     let data = datasets.Simple(PTS);
 
     let tensorTrain = new TensorTrain();
-    tensorTrain.model = new Network1();
+    tensorTrain.model = new NetworkMultithreaded();
     tensorTrain.train(data, RATE);
 }
 
@@ -52,4 +62,8 @@ export function test6(): void{
     tensorTrain.train(data, RATE, 100);
 }
 
-test6();
+try {
+    test1();
+} finally {
+    destroyPool();
+}
