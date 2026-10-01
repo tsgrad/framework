@@ -139,7 +139,7 @@ export class TensorTrain{
 
             let out: Tensor = this.model.forward(x).view(data.n);
             let prob = (out.mul(y)).add((out.sub(1).mul(y.sub(1))));
-            let loss: Tensor = prob.log().neg();
+            let loss: Tensor = prob.add(1e-7).log().neg();
             // backpropagate
             (loss.div(data.n)).sum(0).view(1).backward();
             
