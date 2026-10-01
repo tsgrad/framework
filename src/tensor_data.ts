@@ -82,7 +82,7 @@ export class TensorData{
 
     static fill(shape: Shape, num: number = 0): TensorData{
         let size = prod(shape);
-        let storage = Array(size).fill(num);
+        let storage = new Float32Array(Array(size).fill(num));
         return new TensorData(storage, shape, TensorData.calculateStrides(shape));
     }
 

@@ -72,7 +72,7 @@ export class Tensor implements Variable{
         if (x instanceof Tensor)
             return x;
         else
-            return new Tensor(new TensorData([x], [1], [1]));
+            return new Tensor(new TensorData(new Float32Array([x]), [1], [1]));
     }
 
     //functions

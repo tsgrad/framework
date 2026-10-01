@@ -2,7 +2,7 @@ import { Storage, Shape, Stride, indexToPosition, broadcastIndex, positionToInde
 import { id, isClose, reluBack, invBack, logBack, add, eq, exp, inv, leakyrelu, log, lt, mul, neg, relu, sigmoid, prod } from "./operators.js";
 import { Tensor } from "./tensor.js";
 
-export function tensorMap(func: (x: number) => number): (out: Storage, outShape: Shape, outStride: Stride, inStorage: Storage, inShape: Storage, inStride: Stride) => void{
+export function tensorMap(func: (x: number) => number): (out: Storage, outShape: Shape, outStride: Stride, inStorage: Storage, inShape: Shape, inStride: Stride) => void{
     function map(out: Storage, outShape: Shape, outStride: Stride, inStorage: Storage, inShape: Shape, inStride: Stride): void{
         const outIndex = new Array(outShape.length);
         const inIndex = new Array(inShape.length);
@@ -49,7 +49,6 @@ export function tensorReduce(func: (x: number, y: number) => number, base: numbe
             throw "Invalid reduceDim, reduceDim must fall within bounds of aShape, got reduceDim: " + reduceDim + ", and aShape.length: " + aShape.length;
 
         let cells = prod(outShape);
-        out.length = cells;
         let curpos: number[] = Array(outShape.length).fill(0);
         for(let i = 0; i < cells; i++){
             let cur = base;

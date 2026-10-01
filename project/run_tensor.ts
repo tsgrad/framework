@@ -8,7 +8,7 @@ import { Optimizer, SGD, SGDMomentum } from "../src/optim.js";
 
 function RParam(...shape: Shape): Tensor{
     // Random tensor where each cell is -1 to 1 with shape as the shape
-    const tensor = new Tensor(new TensorData(Array.from({ length: operators.prod(shape) }, () => randomFloat(-1, 1)), shape));
+    const tensor = new Tensor(new TensorData(new Float32Array(Array.from({ length: operators.prod(shape) }, () => randomFloat(-1, 1))), shape));
     tensor._requiresGrad(true);
     return tensor;
 }
@@ -104,11 +104,11 @@ export class TensorTrain{
     }
 
     runOne(x: number[]): Tensor{
-        return this.model.forward(new Tensor(new TensorData(x, [1, x.length])));
+        return this.model.forward(new Tensor(new TensorData(new Float32Array(x), [1, x.length])));
     }
 
     runMany(x: number[][]): Tensor{
-        return this.model.forward(new Tensor(new TensorData(x.flat(), [x.length, x[0].length])));
+        return this.model.forward(new Tensor(new TensorData(new Float32Array(x.flat()), [x.length, x[0].length])));
     }
 
     train(data: Graph, learningRate: number, maxEpochs: number = 500, logFn: Function = defaultLogFn): void{
@@ -124,8 +124,8 @@ export class TensorTrain{
             let correct = 0;
             this.optim.zeroGrad();
             
-            let x = new Tensor(new TensorData(data.x.flat(), [data.x.length, data.x[0].length]));
-            let y = new Tensor(new TensorData(data.y, [data.y.length]));
+            let x = new Tensor(new TensorData(new Float32Array(data.x.flat()), [data.x.length, data.x[0].length]));
+            let y = new Tensor(new TensorData(new Float32Array(data.y), [data.y.length]));
 
             let out: Tensor = this.model.forward(x).view(data.n);
             let prob = (out.mul(y)).add((out.sub(1).mul(y.sub(1))));
