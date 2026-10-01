@@ -1,8 +1,7 @@
 import { parentPort, workerData } from 'node:worker_threads';
 
 
-// functions from tensor_data copied here since we can't import relative files here, also changed the implementations so we dont have to
-// this is because a node worker has its own v8 isolate, javascript heap, and other things so the worker doesn't know what path we came from, thus no imports
+// functions from tensor_data copied here since I don't want to deal with import issues
 export function indexToPosition(index: number[], strides: number[]): number{
     let res = 0;
     for (let i = 0; i < index.length; i++)
@@ -40,10 +39,10 @@ interface MapTask {
     end: number;
     outBuffer: SharedArrayBuffer;
     outShape: number[];
-    outStrides: number[];
+    outStride: number[];
     inBuffer: SharedArrayBuffer;
     inShape: number[];
-    inStrides: number[];
+    inStride: number[];
     aligned: boolean;
 }
 
@@ -54,13 +53,13 @@ interface ZipTask {
     end: number;
     outBuffer: SharedArrayBuffer;
     outShape: number[];
-    outStrides: number[];
+    outStride: number[];
     aBuffer: SharedArrayBuffer;
     aShape: number[];
-    aStrides: number[];
+    aStride: number[];
     bBuffer: SharedArrayBuffer;
     bShape: number[];
-    bStrides: number[];
+    bStride: number[];
     aligned: boolean;
 }
 
@@ -71,10 +70,112 @@ interface ReduceTask {
     end: number;
     outBuffer: SharedArrayBuffer;
     outShape: number[];
-    outStrides: number[];
+    outStride: number[];
     inBuffer: SharedArrayBuffer;
     inShape: number[];
-    inStrides: number[];
+    inStride: number[];
     reduceDim: number;
     reduceDimSize: number;
+    base: number;
 }
+
+type Task = MapTask | ZipTask | ReduceTask;
+
+const { workerId, syncBuffer } = workerData as {
+    workerId: number;
+    syncBuffer: SharedArrayBuffer;
+};
+const syncArray = new Int32Array(syncBuffer);
+
+function reconstructFn<T>(source: string): T {
+    return new Function('return ' + source)();
+}
+
+function handleMap(task: MapTask): void{
+    const func = reconstructFn<(x: number) => number>(task.funcstring);
+    const outStorage = new Float32Array(task.outBuffer);
+    const inStorage = new Float32Array(task.inBuffer);
+
+    if (task.aligned){
+        for (let i = task.start; i < task.end; i++)
+            outStorage[i] = func(inStorage[i]);
+        return;
+    }
+
+    const outIndex = new Array(task.outShape.length);
+    const inIndex = new Array(task.inShape.length);
+
+    for (let i = task.start; i < task.end; i++){
+        positionToIndex(i, task.outShape, outIndex);
+        const outPos = indexToPosition(outIndex, task.outStride);
+
+        broadcastIndex(outIndex, task.outShape, task.inShape, inIndex);
+        const inPos = indexToPosition(inIndex, task.inStride);
+
+        outStorage[outPos] = func(inStorage[inPos]);
+    }
+}
+
+function handleZip(task: ZipTask): void{
+    const func = reconstructFn<(x: number, y: number) => number>(task.funcstring);
+    const outStorage = new Float32Array(task.outBuffer);
+    const aStorage = new Float32Array(task.aBuffer);
+    const bStorage = new Float32Array(task.bBuffer);
+
+    if (task.aligned){
+        for (let i = task.start; i < task.end; i++)
+            outStorage[i] = func(aStorage[i], bStorage[i]);
+        return;
+    }
+
+    const outIndex = new Array(task.outShape.length);
+    const aIndex = new Array(task.aShape.length);
+    const bIndex = new Array(task.bShape.length);
+
+    for (let i = task.start; i < task.end; i++){
+        positionToIndex(i, task.outShape, outIndex);
+        const outPos = indexToPosition(outIndex, task.outStride);
+
+        broadcastIndex(outIndex, task.outShape, task.aShape, aIndex);
+        const aPos = indexToPosition(aIndex, task.aStride);
+
+        broadcastIndex(outIndex, task.outShape, task.bShape, bIndex);
+        const bPos = indexToPosition(bIndex, task.bStride);
+
+        outStorage[outPos] = func(aStorage[aPos], bStorage[bPos]);
+    }
+}
+
+function handleReduce(task: ReduceTask): void{
+    const func = reconstructFn<(x: number, y: number) => number>(task.funcstring);
+    const outStorage = new Float32Array(task.outBuffer);
+    const inStorage = new Float32Array(task.inBuffer);
+
+    const outIndex = new Array(task.outShape.length);
+    for(let i = task.start; i < task.end; i++){
+        positionToIndex(i, task.outShape, outIndex);
+        let cur = task.base;
+        let temp = outIndex[task.reduceDim];
+        for (let j = 0; j < task.inShape[task.reduceDim]; j++){
+            
+            outIndex[task.reduceDim] = j;
+            cur = func(cur, inStorage[indexToPosition(outIndex, task.inStride)]);
+            
+        }
+        outIndex[task.reduceDim] = temp;
+
+        outStorage[indexToPosition(outIndex, task.outStride)] = cur;
+    }
+}
+
+parentPort!.on('message', (task: Task) => {
+    switch (task.type) {
+        case 'map':    handleMap(task);    break;
+        case 'zip':    handleZip(task);    break;
+        case 'red':    handleReduce(task); break;
+    }
+
+    Atomics.store(syncArray, workerId, 1);
+    Atomics.notify(syncArray, workerId);
+    parentPort!.postMessage('done');
+});
