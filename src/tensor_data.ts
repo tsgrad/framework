@@ -4,7 +4,7 @@ export type OutIndex = number[];
 export type Shape = number[];
 export type Stride = number[];
 export type Index = number[];
-export type Storage = number[];
+export type Storage = Float32Array;
 
 export type UserShape = number[];
 export type UserStrides = number[];
