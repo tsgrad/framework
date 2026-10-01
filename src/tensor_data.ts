@@ -82,7 +82,8 @@ export class TensorData{
 
     static fill(shape: Shape, num: number = 0): TensorData{
         let size = prod(shape);
-        let storage = new Float32Array(Array(size).fill(num));
+        const storage = new Float32Array(new SharedArrayBuffer(size * Float32Array.BYTES_PER_ELEMENT));
+        storage.fill(num);
         return new TensorData(storage, shape, TensorData.calculateStrides(shape));
     }
 

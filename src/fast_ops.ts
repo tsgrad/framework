@@ -204,6 +204,9 @@ export function fastTensorZip(func: (x: number, y: number) => number): (out: Sto
 
 export function fastTensorReduce(func: (x: number, y: number) => number, base: number): (out: Storage, outShape: Shape, outStride: Stride, aStorage: Storage, aShape: Shape, aStride: Stride, reduceDim: number) => void {
     function reduce(out: Storage, outShape: Shape, outStride: Stride, aStorage: Storage, aShape: Shape, aStride: Stride, reduceDim: number): void{
+        if (reduceDim < 0 || reduceDim >= aShape.length)
+            throw "Invalid reduceDim, reduceDim must fall within bounds of aShape, got reduceDim: " + reduceDim + ", and aShape.length: " + aShape.length;
+
         const size = prod(outShape);
         const reduceDimSize = aShape[reduceDim];
         const pool = getPool();
@@ -212,18 +215,19 @@ export function fastTensorReduce(func: (x: number, y: number) => number, base: n
         if (pool && size >= THRESHOLD && isShared(out) && isShared(aStorage)){
             const funcstring = func.toString();
             pool.parallelFor(size, (start, end) => ({
-                type: 'reduce',
+                type: 'red',
                 funcstring,
                 start,
                 end,
                 outBuffer: out.buffer as SharedArrayBuffer,
                 outShape: Array.from(outShape),
                 outStride: Array.from(outStride),
-                aBuffer: aStorage.buffer as SharedArrayBuffer,
-                aShape: Array.from(aShape),
-                aStride: Array.from(aStride),
+                inBuffer: aStorage.buffer as SharedArrayBuffer,
+                inShape: Array.from(aShape),
+                inStride: Array.from(aStride),
                 reduceDim,
-                reduceDimSize
+                reduceDimSize,
+                base
             }));
             return;
         }
