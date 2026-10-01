@@ -1,8 +1,8 @@
 import { describe, test, expect } from "vitest"
-import { centralDifference, Context } from "../src/autodiff"
-import { id, add, mul, exp, isClose } from "../src/operators"
-import { ScalarFunction } from "../src/scalar_functions"
-import { Scalar, ScalarHistory } from "../src/scalar"
+import { centralDifference, Context } from "../src/autodiff.js"
+import { id, add, mul, exp, isClose } from "../src/operators.js"
+import { ScalarFunction } from "../src/scalar_functions.js"
+import { Scalar, ScalarHistory } from "../src/scalar.js"
 
 test("Test central difference", () => {
     expect(isClose(centralDifference(id, [5]), 1.0)).toEqual(1);

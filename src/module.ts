@@ -1,4 +1,4 @@
-import { Variable } from "./autodiff";
+import { Variable } from "./autodiff.js";
 
 export class Parameter{
     /*

@@ -1,10 +1,10 @@
-import { randomFloat } from "../src/helperfunctions"
-import { Module, Parameter } from "../src/module"
-import { Tensor } from "../src/tensor";
-import { Shape, TensorData } from "../src/tensor_data"
-import * as operators from "../src/operators"
-import { Graph } from "../src/datasets";
-import { Optimizer, SGD, SGDMomentum } from "../src/optim";
+import { randomFloat } from "../src/helperfunctions.js"
+import { Module, Parameter } from "../src/module.js"
+import { Tensor } from "../src/tensor.js";
+import { Shape, TensorData } from "../src/tensor_data.js"
+import * as operators from "../src/operators.js"
+import { Graph } from "../src/datasets.js";
+import { Optimizer, SGD, SGDMomentum } from "../src/optim.js";
 
 function RParam(...shape: Shape): Tensor{
     // Random tensor where each cell is -1 to 1 with shape as the shape

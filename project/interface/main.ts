@@ -4,12 +4,12 @@ import GIF from "gif.js";
 import gifWorkerUrl from "gif.js/dist/gif.worker.js?url";
 import Plotly from "plotly.js/dist/plotly.min.js";
 
-import { datasets } from "../../src/datasets";
-import { Scalar } from "../../src/scalar";
-import { Network, ScalarTrain } from "../run_scalar";
-import { animate, plotOut } from "./plots";
-import { Network1, Network2, Network3, Network6} from "../test_scalar"
-import { SGDMomentum } from "../../src/optim";
+import { datasets } from "../../src/datasets.js";
+import { Scalar } from "../../src/scalar.js";
+import { Network, ScalarTrain } from "../run_scalar.js";
+import { animate, plotOut } from "./plots.js";
+import { Network1, Network2, Network3, Network6} from "../test_scalar.js"
+import { SGDMomentum } from "../../src/optim.js";
 
 
 const plotElement = document.querySelector<HTMLDivElement>("#plot");

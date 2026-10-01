@@ -1,4 +1,4 @@
-import { zipWith, sum, mul, max, prod } from "./operators";
+import { zipWith, sum, mul, max, prod } from "./operators.js";
 
 export type OutIndex = number[];
 export type Shape = number[];

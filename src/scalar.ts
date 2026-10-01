@@ -1,5 +1,5 @@
-import { backpropagate, Context, Variable } from "./autodiff";
-import { Add, EQ, Exp, Inv, LeakyReLU, Log, LT, Mul, Neg, ReLU, ScalarFunction, Sigmoid } from "./scalar_functions";
+import { backpropagate, Context, Variable } from "./autodiff.js";
+import { Add, EQ, Exp, Inv, LeakyReLU, Log, LT, Mul, Neg, ReLU, ScalarFunction, Sigmoid } from "./scalar_functions.js";
 
 export class ScalarHistory{
     // Tracks the history of `Function` operations that were used

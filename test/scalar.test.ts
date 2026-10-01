@@ -1,7 +1,7 @@
 import { describe, test, expect } from "vitest"
-import { Scalar } from "../src/scalar"
-import { randomInt } from "../src/helperfunctions";
-import { isClose, log, relu } from "../src/operators";
+import { Scalar } from "../src/scalar.js"
+import { randomInt } from "../src/helperfunctions.js";
+import { isClose, log, relu } from "../src/operators.js";
 
 // Toggle to see what the histories of the scalars look like
 var verbose = true;

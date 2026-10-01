@@ -1,6 +1,6 @@
-import { backpropagate, Context, Variable } from "./autodiff";
-import { TensorData, UserShape, Shape } from "./tensor_data";
-import { Add, TensorFunction, Neg, Mul, Inv, LT, EQ, IsClose, Sigmoid, ReLU, Log, Exp, Sum, Permute, ToContiguous, View } from "./tensor_functions";
+import { backpropagate, Context, Variable } from "./autodiff.js";
+import { TensorData, UserShape, Shape } from "./tensor_data.js";
+import { Add, TensorFunction, Neg, Mul, Inv, LT, EQ, IsClose, Sigmoid, ReLU, Log, Exp, Sum, Permute, ToContiguous, View } from "./tensor_functions.js";
 
 export class History{
     lastFn : typeof TensorFunction | undefined;

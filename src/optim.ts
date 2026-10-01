@@ -1,8 +1,8 @@
-import { Variable } from "./autodiff";
-import { Queue } from "./datastructures";
-import { Parameter } from "./module";
-import { Scalar } from "./scalar";
-import { Tensor } from "./tensor";
+import { Variable } from "./autodiff.js";
+import { Queue } from "./datastructures.js";
+import { Parameter } from "./module.js";
+import { Scalar } from "./scalar.js";
+import { Tensor } from "./tensor.js";
 
 export abstract class Optimizer{
     parameters: Parameter[];

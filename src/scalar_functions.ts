@@ -1,5 +1,5 @@
-import { add, eq, exp, inv, leakyrelu, log, lt, mul, neg, relu, sigmoid } from "../src/operators"
-import { Context } from "../src/autodiff"
+import { add, eq, exp, inv, leakyrelu, log, lt, mul, neg, relu, sigmoid } from "../src/operators.js"
+import { Context } from "../src/autodiff.js"
 
 export class ScalarFunction{
     static backward(ctx: Context, dOut: number): number[]{

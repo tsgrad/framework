@@ -1,6 +1,6 @@
-import { Storage, Shape, Stride, indexToPosition, broadcastIndex, positionToIndex} from "./tensor_data";
-import { id, isClose, reluBack, invBack, logBack, add, eq, exp, inv, leakyrelu, log, lt, mul, neg, relu, sigmoid, prod } from "./operators";
-import { Tensor } from "./tensor";
+import { Storage, Shape, Stride, indexToPosition, broadcastIndex, positionToIndex} from "./tensor_data.js";
+import { id, isClose, reluBack, invBack, logBack, add, eq, exp, inv, leakyrelu, log, lt, mul, neg, relu, sigmoid, prod } from "./operators.js";
+import { Tensor } from "./tensor.js";
 
 export function tensorMap(func: (x: number) => number): (out: Storage, outShape: Shape, outStride: Stride, inStorage: Storage, inShape: Storage, inStride: Stride) => void{
     function map(out: Storage, outShape: Shape, outStride: Stride, inStorage: Storage, inShape: Shape, inStride: Stride): void{

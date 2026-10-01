@@ -1,6 +1,6 @@
-import { datasets } from "../src/datasets";
-import { Sigmoid } from "../src/scalar_functions";
-import { Network, Linear, NetworkLayer, ScalarTrain, SimpleNetwork } from "./run_scalar";
+import { datasets } from "../src/datasets.js";
+import { Sigmoid } from "../src/scalar_functions.js";
+import { Network, Linear, NetworkLayer, ScalarTrain, SimpleNetwork } from "./run_scalar.js";
 
 export class Network1 extends Network{
     constructor(){

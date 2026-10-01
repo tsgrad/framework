@@ -1,8 +1,8 @@
-import { Tensor } from "./tensor";
-import { Shape, shapeBroadcast, TensorData } from "./tensor_data";
-import { Context } from "./autodiff";
-import * as operators from "./operators";
-import { tensorMap, tensorZip, tensorReduce } from "./tensor_ops";
+import { Tensor } from "./tensor.js";
+import { Shape, shapeBroadcast, TensorData } from "./tensor_data.js";
+import { Context } from "./autodiff.js";
+import * as operators from "./operators.js";
+import { tensorMap, tensorZip, tensorReduce } from "./tensor_ops.js";
 
 export function neg(a: TensorData): TensorData{
     const out = TensorData.fill(a.shape, 0);

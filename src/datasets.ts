@@ -1,4 +1,4 @@
-import { randomFloat } from "./helperfunctions";
+import { randomFloat } from "./helperfunctions.js";
 
 function makePts(n: number): [number, number][]{
     let res: [number, number][] = [];

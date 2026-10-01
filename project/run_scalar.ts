@@ -1,8 +1,8 @@
-import { Module, Parameter } from "../src/module";
-import { randomFloat } from "../src/helperfunctions";
-import { Scalar, ScalarHistory } from "../src/scalar";
-import { Graph, datasets } from "../src/datasets";
-import { Optimizer, SGD, SGDMomentum } from "../src/optim";
+import { Module, Parameter } from "../src/module.js";
+import { randomFloat } from "../src/helperfunctions.js";
+import { Scalar, ScalarHistory } from "../src/scalar.js";
+import { Graph, datasets } from "../src/datasets.js";
+import { Optimizer, SGD, SGDMomentum } from "../src/optim.js";
 
 
 type ActivationFunction = "relu" | "leakyrelu" | "sigmoid";

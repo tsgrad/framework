@@ -1,6 +1,6 @@
 import { describe, test, expect } from "vitest"
-import { Module, Parameter } from "../src/module"
-import { randomInt, randomFloat } from "../src/helperfunctions";
+import { Module, Parameter } from "../src/module.js"
+import { randomInt, randomFloat } from "../src/helperfunctions.js";
 
 class ModuleA1 extends Module{
     p1: Parameter;

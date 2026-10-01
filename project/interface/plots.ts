@@ -6,7 +6,7 @@ import type {
     Root,
 } from "plotly.js";
 
-import { Graph } from "../../src/datasets";
+import { Graph } from "../../src/datasets.js";
 
 interface GraphBounds {
     xMin: number;

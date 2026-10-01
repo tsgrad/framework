@@ -1,5 +1,5 @@
-import { datasets } from "../src/datasets";
-import { Linear, Network, TensorTrain } from "./run_tensor";
+import { datasets } from "../src/datasets.js";
+import { Linear, Network, TensorTrain } from "./run_tensor.js";
 
 
 export class Network1 extends Network{

@@ -1,4 +1,4 @@
-import { Queue } from "./datastructures";
+import { Queue } from "./datastructures.js";
 
 export function centralDifference(f: Function, vals: number[], arg: number = 0, epsilon: number = 1e-6){
     let original = vals[arg];
