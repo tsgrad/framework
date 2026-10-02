@@ -76,6 +76,9 @@ export class Linear extends Layer{
     }
 
     forward(inputs: Tensor): Tensor{
+        return inputs.matmul(this.weights.value as Tensor).add(this.bias.value as Tensor);
+
+        /* we have matmul now so this is no longer needed
         // we want output = [batchsize, outsize]
         return (this.weights.value as Tensor) // first need to reshape weights and inputs so they can be multiplied together
             .view(1, this.inSize, this.outSize) // now [insize, outsize] is [1, insize, outsize]
@@ -87,6 +90,7 @@ export class Linear extends Layer{
             .add( // second we need to add bias [outsize]
                 this.bias.value as Tensor
             ); // we can do [batchsize, outsize] + [outsize] since add will broadcast [outsize] to [batchsize, outsize]
+        */
     }
 }
 
