@@ -79,7 +79,22 @@ interface ReduceTask {
     base: number;
 }
 
-type Task = MapTask | ZipTask | ReduceTask;
+interface MatMulTask {
+    type: 'mul',
+    start: number,
+    end: number,
+    outBuffer: SharedArrayBuffer,
+    outStride: number[],
+    aBuffer: SharedArrayBuffer,
+    aStride: number[],
+    bBuffer: SharedArrayBuffer,
+    bStride: number[],
+    m: number,
+    n: number,
+    k: number
+}
+
+type Task = MapTask | ZipTask | ReduceTask | MatMulTask;
 
 const { workerId, syncBuffer } = workerData as {
     workerId: number;
@@ -168,11 +183,36 @@ function handleReduce(task: ReduceTask): void{
     }
 }
 
+function handleMatMul(task: MatMulTask): void{
+    const outBuffer = new Float32Array(task.outBuffer);
+    const aStorage = new Float32Array(task.aBuffer);
+    const bStorage = new Float32Array(task.bBuffer);
+
+    for(let i = task.start; i < task.end; i++){
+        const row = Math.floor(i / task.n);
+        const col = i % task.n;
+
+        let aPos = row * task.aStride[0];
+        let bPos = col * task.bStride[1];
+
+        let sum = 0;
+        for (let j = 0; j < task.k; j++){
+            sum += aStorage[aPos] * bStorage[bPos];
+            aPos += task.aStride[1];
+            bPos += task.bStride[0];
+        }
+
+        const outPos = row * task.outStride[0] + col * task.outStride[1];
+        outBuffer[outPos] = sum;
+    }
+}
+
 parentPort!.on('message', (task: Task) => {
     switch (task.type) {
         case 'map':    handleMap(task);    break;
         case 'zip':    handleZip(task);    break;
         case 'red':    handleReduce(task); break;
+        case 'mul':    handleMatMul(task); break;
     }
 
     Atomics.store(syncArray, workerId, 1);
