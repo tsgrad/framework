@@ -256,3 +256,71 @@ export function fastTensorReduce(func: (x: number, y: number) => number, base: n
     }
     return reduce;
 }
+
+function shapesCanBeMul(aShape: Shape, bShape: Shape){
+    if (aShape.length != bShape.length || aShape.length < 2) return false;
+    
+    for (let i = 0; i < aShape.length - 2; i++){
+        if (aShape[i] != bShape[i])
+            return false;
+    }
+    
+    return aShape[aShape.length - 1] == bShape[bShape.length - 2];
+}
+
+export function fastMatMul(out: Storage, outShape: Shape, outStride: Stride, aStorage: Storage, aShape: Shape, aStride: Stride, bStorage: Storage, bShape: Shape, bStride: Stride){
+    if (!shapesCanBeMul(aShape, bShape))
+        throw `Incompatible shapes for matrix mul, a: ${aShape}, b: ${bShape}`;
+    
+    if (aShape.length !== 2)
+        throw "Shapes length must be 2 for now";
+
+    const m = aShape[0];
+    const k = aShape[1];
+    const bK = bShape[0];
+    const n = bShape[1];
+
+    const size = m * n * k;
+    const outSize = m * n;
+
+    
+
+    if (size >= THRESHOLD && isShared(out) && isShared(aStorage) && isShared(bStorage)){
+        const pool = getPool();
+        if (pool){
+            pool.parallelFor(outSize, (start, end) => ({
+                type: 'mul',
+                start,
+                end,
+                outBuffer: out.buffer as SharedArrayBuffer,
+                outStride: Array.from(outStride),
+                aBuffer: aStorage.buffer as SharedArrayBuffer,
+                aStride: Array.from(aStride),
+                bBuffer: bStorage.buffer as SharedArrayBuffer,
+                bStride: Array.from(bStride),
+                m,
+                n,
+                k
+            }));
+            return;
+        }
+    }
+
+    for (let i = 0; i < outSize; i++){
+        // left to right top to bottom
+        const row = Math.floor(i / n);
+        const column = i % n;
+
+        let aPos = row * aStride[0];
+        let bPos = column * bStride[1];
+        let sum = 0;
+
+        for (let j = 0; j < k; j++){
+            sum += aStorage[aPos] * bStorage[bPos];
+            aPos += aStride[1];
+            bPos += bStride[0];
+        }
+        const outPos = row * outStride[0] + column * outStride[1];
+        out[outPos] = sum;
+    }
+}
