@@ -1,6 +1,6 @@
 import { backpropagate, Context, Variable } from "./autodiff.js";
 import { TensorData, UserShape, Shape } from "./tensor_data.js";
-import { Add, TensorFunction, Neg, Mul, Inv, LT, EQ, IsClose, Sigmoid, ReLU, Log, Exp, Sum, Permute, ToContiguous, View } from "./tensor_functions.js";
+import { Add, TensorFunction, Neg, Mul, Inv, LT, EQ, IsClose, Sigmoid, ReLU, Log, Exp, Sum, Permute, ToContiguous, View, MatMul } from "./tensor_functions.js";
 
 export class History{
     lastFn : typeof TensorFunction | undefined;
@@ -132,6 +132,10 @@ export class Tensor implements Variable{
 
     exp(): Tensor{
         return Tensor.apply(Exp, this);
+    }
+
+    matmul(b: Tensor): Tensor{
+        return Tensor.apply(MatMul, this, b);
     }
 
     sum(dim: number): Tensor{

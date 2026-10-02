@@ -4,7 +4,7 @@ import { Context } from "./autodiff.js";
 import * as operators from "./operators.js";
 // swap out if wanted, tensor_ops has non-multithreaded, the fastTensor stuff is multithreaded
 //import { tensorMap, tensorZip, tensorReduce } from "./tensor_ops.js";
-import {fastTensorMap as tensorMap, fastTensorZip as tensorZip, fastTensorReduce as tensorReduce} from "./fast_ops.js";
+import {fastTensorMap as tensorMap, fastTensorZip as tensorZip, fastTensorReduce as tensorReduce, fastMatMul as matMul} from "./fast_ops.js";
 
 export function neg(a: TensorData): TensorData{
     const out = TensorData.fill(a.shape, 0);
@@ -81,6 +81,14 @@ export function isclose(a: TensorData, b: TensorData): TensorData{
     const outShape = shapeBroadcast(a._shape, b._shape);
     const out = TensorData.fill(outShape, 0);
     tensorZip(operators.isClose)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride, b._storage, b._shape, b._stride);
+    return out;
+}
+
+export function matmul(a: TensorData, b: TensorData): TensorData{
+    if (a._shape.length != 2 || b._shape.length != 2)
+        throw "both a and b's shapes must be of length 2 for now";
+    let out = TensorData.fill([a._shape[0], b._shape[1]]);
+    matMul(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride, b._storage, b._shape, b._stride);
     return out;
 }
 
@@ -268,6 +276,18 @@ export class IsClose extends TensorFunction{
     static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
         let [a, b] = ctx.savedValues;
         return [Tensor.zeros(a.shape()), Tensor.zeros(b.shape())];
+    }
+}
+
+export class MatMul extends TensorFunction{
+    static forward(ctx: Context, a: Tensor, b: Tensor): Tensor{
+        ctx.saveForBackward(a, b);
+        return new Tensor(matmul(a.data, b.data));
+    }
+
+    static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
+        let [a, b] = ctx.savedValues;
+        return [gradOutput.matmul(b.permute(1, 0)), a.permute(1, 0).matmul(gradOutput)];
     }
 }
 
