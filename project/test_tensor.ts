@@ -48,7 +48,7 @@ export function test1(): void{
 
     let tensorTrain = new TensorTrain();
     tensorTrain.model = new NetworkMultithreaded();
-    tensorTrain.train(data, RATE);
+    tensorTrain.train(data, RATE, 100);
 }
 
 export function test6(): void{

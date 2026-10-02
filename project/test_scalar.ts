@@ -1,6 +1,6 @@
-import { datasets } from "../src/datasets.js";
-import { Sigmoid } from "../src/scalar_functions.js";
-import { Network, Linear, NetworkLayer, ScalarTrain, SimpleNetwork } from "./run_scalar.js";
+import { datasets } from "../src/datasets";
+import { Sigmoid } from "../src/scalar_functions";
+import { Network, Linear, NetworkLayer, ScalarTrain, SimpleNetwork } from "./run_scalar";
 
 export class Network1 extends Network{
     constructor(){
@@ -29,10 +29,10 @@ export class Network3 extends Network{
 export class Network6 extends Network{
     constructor(){
         super();
-        this.addLayer(Linear, "relu", 2, 10);
-        this.addLayer(Linear, "relu", 10, 10);
-        this.addLayer(Linear, "relu", 10, 10);
-        this.addLayer(Linear, "relu", 10, 10);
+        this.addLayer(Linear, "leakyrelu", 2, 10);
+        this.addLayer(Linear, "leakyrelu", 10, 10);
+        this.addLayer(Linear, "leakyrelu", 10, 10);
+        this.addLayer(Linear, "leakyrelu", 10, 10);
         this.addLayer(Linear, "sigmoid", 10, 1);
     }
 }
@@ -81,7 +81,7 @@ export function test6(): void{
 
     let scalarTrain = new ScalarTrain();
     scalarTrain.model = new Network6();
-    scalarTrain.train(data, RATE, 100);
+    new ScalarTrain().train(data, RATE, 10000);
 }
 
 test6();
