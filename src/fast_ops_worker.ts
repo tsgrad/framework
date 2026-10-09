@@ -107,6 +107,7 @@ interface Conv1dTask{
     weightStride: number[],
     reverse: boolean,
     inChannels: number,
+    inWidth: number,
     kWidth: number
 }
 
@@ -245,7 +246,7 @@ function handleConv1d(task: Conv1dTask): void{
             weightpos[1] = ic;
             for (let k = 0; k < task.kWidth; k++){
                 let x = task.reverse ? w - k : w + k;
-                if (x >= 0 && x < task.outShape[2]){ // if inbounds add it, else add 0 (which is the same as doing nothing) 
+                if (x >= 0 && x < task.inWidth){ // if inbounds add it, else add 0 (which is the same as doing nothing) 
                     inpos[2] = x;
                     weightpos[2] = k;
                     total += inStorage[indexToPosition(inpos, task.inStride)] * weightStorage[indexToPosition(weightpos, task.weightStride)];

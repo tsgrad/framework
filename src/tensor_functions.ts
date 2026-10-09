@@ -92,7 +92,7 @@ export function matmul(a: TensorData, b: TensorData): TensorData{
     return out;
 }
 
-export function conv1d(input: TensorData, weight: TensorData, reverse: boolean = false): TensorData{
+export function conv1d(input: TensorData, weight: TensorData, reverse: boolean = false, outWidth?: number): TensorData{
     /*
      """
         ctx.save_for_backward(input, weight)
@@ -109,11 +109,11 @@ export function conv1d(input: TensorData, weight: TensorData, reverse: boolean =
     */
     
     const batch = input._shape[0], inChannels = input._shape[1], w = input._shape[2];
-    const outChannel = weight.shape[0], inChannels2 = weight.shape[1], kw = weight.shape[2];
+    const outChannel = weight._shape[0], inChannels2 = weight._shape[1], kw = weight._shape[2];
 
     if (inChannels != inChannels2) throw "in channels must be same between both input shape and weight shape";
-    
-    let out = TensorData.fill([batch, outChannel, w]);
+
+    let out = TensorData.fill([batch, outChannel, outWidth ? outWidth : w]);
     tensorConv1d(out._storage, out._shape, out._stride, input._storage, input._shape, input._stride, weight._storage, weight._shape, weight._stride, reverse);
     return out;
 }
@@ -314,6 +314,18 @@ export class MatMul extends TensorFunction{
     static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
         let [a, b] = ctx.savedValues;
         return [gradOutput.matmul(b.permute(1, 0)), a.permute(1, 0).matmul(gradOutput)];
+    }
+}
+
+export class Conv1d extends TensorFunction{
+    static forward(ctx: Context, input: Tensor, weight: Tensor): Tensor{
+        ctx.saveForBackward(input, weight);
+        return new Tensor(conv1d(input.data, weight.data));
+    }
+
+    static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
+        let [input, weight] = ctx.savedValues;
+        return [new Tensor(conv1d(gradOutput.data, weight.permute(1, 0, 2).data, true)), new Tensor(conv1d(input.permute(1, 0, 2).data, gradOutput.permute(1, 0, 2).data, false, weight.shape()[2])).permute(1, 0, 2)];
     }
 }
 

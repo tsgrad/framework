@@ -352,11 +352,12 @@ export function fastConv1d(out: Storage, outShape: Shape, outStride: Stride,
     const kWidth = weightShape[2]; // k width is the length of the kernel
 
     if (inChannels !== weightShape[1]) throw "in channels must be same between both input shape and weight shape";
-    if (outShape[0] !== batch || outShape[1] !== outChannels || outShape[2] !== width) throw "output shape is not the expected shape";
+    if (outShape[0] !== batch || outShape[1] !== outChannels) throw "output shape is not the expected shape";
 
-    const size = batch * outChannels * width;
+    const size = batch * outChannels * outShape[2];
+    const work = size * inChannels * kWidth;
     
-    if (size >= THRESHOLD && isShared(out) && isShared(input) && isShared(weight)){
+    if (work >= THRESHOLD && isShared(out) && isShared(input) && isShared(weight)){
         const pool = getPool();
         if (pool){
             pool.parallelFor(size, (start, end) => ({
@@ -372,6 +373,7 @@ export function fastConv1d(out: Storage, outShape: Shape, outStride: Stride,
                 weightStride: Array.from(weightStride),
                 reverse,
                 inChannels,
+                inWidth: width,
                 kWidth
             }));
             return;
@@ -387,7 +389,7 @@ export function fastConv1d(out: Storage, outShape: Shape, outStride: Stride,
         for (let oc = 0; oc < outChannels; oc++){
             outpos[1] = oc;
             weightpos[0] = oc;
-            for (let w = 0; w < width; w++){
+            for (let w = 0; w < outShape[2]; w++){
                 outpos[2] = w;
                 let total = 0.0;
                 for (let ic = 0; ic < inChannels; ic++){
