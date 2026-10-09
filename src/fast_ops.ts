@@ -325,7 +325,7 @@ export function fastMatMul(out: Storage, outShape: Shape, outStride: Stride, aSt
     }
 }
 
-function fastConv1d(out: Storage, outShape: Shape, outStride: Stride, outSize: number,
+export function fastConv1d(out: Storage, outShape: Shape, outStride: Stride,
     input: Storage, inputShape: Shape, inputStride: Stride,
     weight: Storage, weightShape: Shape, weightStride: Stride,
     reverse: boolean): void{
@@ -353,7 +353,6 @@ function fastConv1d(out: Storage, outShape: Shape, outStride: Stride, outSize: n
 
     if (inChannels !== weightShape[1]) throw "in channels must be same between both input shape and weight shape";
     if (outShape[0] !== batch || outShape[1] !== outChannels || outShape[2] !== width) throw "output shape is not the expected shape";
-
 
     const size = batch * outChannels * width;
     

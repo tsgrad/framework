@@ -4,7 +4,7 @@ import { Context } from "./autodiff.js";
 import * as operators from "./operators.js";
 // swap out if wanted, tensor_ops has non-multithreaded, the fastTensor stuff is multithreaded
 //import { tensorMap, tensorZip, tensorReduce } from "./tensor_ops.js";
-import {fastTensorMap as tensorMap, fastTensorZip as tensorZip, fastTensorReduce as tensorReduce, fastMatMul as matMul} from "./fast_ops.js";
+import {fastTensorMap as tensorMap, fastTensorZip as tensorZip, fastTensorReduce as tensorReduce, fastMatMul as matMul, fastConv1d as tensorConv1d} from "./fast_ops.js";
 
 export function neg(a: TensorData): TensorData{
     const out = TensorData.fill(a.shape, 0);
@@ -89,6 +89,32 @@ export function matmul(a: TensorData, b: TensorData): TensorData{
         throw "both a and b's shapes must be of length 2 for now";
     let out = TensorData.fill([a._shape[0], b._shape[1]]);
     matMul(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride, b._storage, b._shape, b._stride);
+    return out;
+}
+
+export function conv1d(input: TensorData, weight: TensorData, reverse: boolean = false): TensorData{
+    /*
+     """
+        ctx.save_for_backward(input, weight)
+        batch, in_channels, w = input.shape
+        out_channels, in_channels2, kw = weight.shape
+        assert in_channels == in_channels2
+
+        # Run convolution
+        output = input.zeros((batch, out_channels, w))
+        tensor_conv1d(
+            *output.tuple(), output.size, *input.tuple(), *weight.tuple(), False
+        )
+        return output
+    */
+    
+    const batch = input._shape[0], inChannels = input._shape[1], w = input._shape[2];
+    const outChannel = weight.shape[0], inChannels2 = weight.shape[1], kw = weight.shape[2];
+
+    if (inChannels != inChannels2) throw "in channels must be same between both input shape and weight shape";
+    
+    let out = TensorData.fill([batch, outChannel, w]);
+    tensorConv1d(out._storage, out._shape, out._stride, input._storage, input._shape, input._stride, weight._storage, weight._shape, weight._stride, reverse);
     return out;
 }
 
