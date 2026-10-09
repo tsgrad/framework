@@ -94,7 +94,23 @@ interface MatMulTask {
     k: number
 }
 
-type Task = MapTask | ZipTask | ReduceTask | MatMulTask;
+interface Conv1dTask{
+    type: 'conv1d',
+    start: number,
+    end: number,
+    outBuffer: SharedArrayBuffer,
+    outShape: number[],
+    outStride: number[],
+    inBuffer: SharedArrayBuffer,
+    inStride: number[],
+    weightBuffer: SharedArrayBuffer,
+    weightStride: number[],
+    reverse: boolean,
+    inChannels: number,
+    kWidth: number
+}
+
+type Task = MapTask | ZipTask | ReduceTask | MatMulTask | Conv1dTask;
 
 const { workerId, syncBuffer } = workerData as {
     workerId: number;
@@ -207,12 +223,46 @@ function handleMatMul(task: MatMulTask): void{
     }
 }
 
+function handleConv1d(task: Conv1dTask): void{
+    const outStorage = new Float32Array(task.outBuffer);
+    const inStorage = new Float32Array(task.inBuffer);
+    const weightStorage = new Float32Array(task.weightBuffer);
+
+    // batch, outChannel, width
+
+    let inpos = [0, 0, 0];
+    let weightpos = [0, 0, 0];
+    let outpos = [0, 0, 0];
+    for (let i = task.start; i < task.end; i++){
+        positionToIndex(i, task.outShape, outpos);
+        const b = outpos[0], oc = outpos[1], w = outpos[2];
+        inpos[0] = b;
+        weightpos[0] = oc;
+
+        let total = 0.0;
+        for (let ic = 0; ic < task.inChannels; ic++){
+            inpos[1] = ic;
+            weightpos[1] = ic;
+            for (let k = 0; k < task.kWidth; k++){
+                let x = task.reverse ? w - k : w + k;
+                if (x >= 0 && x < task.outShape[2]){ // if inbounds add it, else add 0 (which is the same as doing nothing) 
+                    inpos[2] = x;
+                    weightpos[2] = k;
+                    total += inStorage[indexToPosition(inpos, task.inStride)] * weightStorage[indexToPosition(weightpos, task.weightStride)];
+                }
+            }
+        }
+        outStorage[indexToPosition(outpos, task.outStride)] = total;
+    }
+}
+
 parentPort!.on('message', (task: Task) => {
     switch (task.type) {
         case 'map':    handleMap(task);    break;
         case 'zip':    handleZip(task);    break;
         case 'red':    handleReduce(task); break;
         case 'mul':    handleMatMul(task); break;
+        case 'conv1d': handleConv1d(task); break;
     }
 
     Atomics.store(syncArray, workerId, 1);
