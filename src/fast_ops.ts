@@ -324,3 +324,86 @@ export function fastMatMul(out: Storage, outShape: Shape, outStride: Stride, aSt
         out[outPos] = sum;
     }
 }
+
+function fastConv1d(out: Storage, outShape: Shape, outStride: Stride, outSize: number,
+    input: Storage, inputShape: Shape, inputStride: Stride,
+    weight: Storage, weightShape: Shape, weightStride: Stride,
+    reverse: boolean): void{
+    /*
+        Given input tensor shape of
+
+        `batch, inChannels, width`
+
+        and weight tensor shape of
+
+        `outChannels, inChannels, kWidth`
+
+        Computes padded output of
+
+        `batch, outChannels, width`
+    */
+
+    if (inputShape.length !== 3) throw "unexpected inputShape size, expected 3 got: " + inputShape.length;
+
+    const batch = inputShape[0];
+    const inChannels = inputShape[1];
+    const width = inputShape[2]; // width is the literal length of the input array
+    const outChannels = weightShape[0];
+    const kWidth = weightShape[2]; // k width is the length of the kernel
+
+    if (inChannels !== weightShape[1]) throw "in channels must be same between both input shape and weight shape";
+    if (outShape[0] !== batch || outShape[1] !== outChannels || outShape[2] !== width) throw "output shape is not the expected shape";
+
+
+    const size = batch * outChannels * width;
+    
+    if (size >= THRESHOLD && isShared(out) && isShared(input) && isShared(weight)){
+        const pool = getPool();
+        if (pool){
+            pool.parallelFor(size, (start, end) => ({
+                type: 'conv1d',
+                start,
+                end,
+                outBuffer: out.buffer as SharedArrayBuffer,
+                outShape: Array.from(outShape),
+                outStride: Array.from(outStride),
+                inBuffer: input.buffer as SharedArrayBuffer,
+                inStride: Array.from(inputStride),
+                weightBuffer: weight.buffer as SharedArrayBuffer,
+                weightStride: Array.from(weightStride),
+                reverse,
+                inChannels,
+                kWidth
+            }));
+            return;
+        }
+    }
+
+    let inpos = [0, 0, 0];
+    let weightpos = [0, 0, 0];
+    let outpos = [0, 0, 0];
+    for (let b = 0; b < batch; b++){
+        inpos[0] = b;
+        outpos[0] = b;
+        for (let oc = 0; oc < outChannels; oc++){
+            outpos[1] = oc;
+            weightpos[0] = oc;
+            for (let w = 0; w < width; w++){
+                outpos[2] = w;
+                let total = 0.0;
+                for (let ic = 0; ic < inChannels; ic++){
+                    inpos[1] = ic;
+                    weightpos[1] = ic;
+                    for (let k = 0; k < kWidth; k++){
+                        let x = reverse ? w - k : w + k;
+                        inpos[2] = x;
+                        weightpos[2] = k;
+                        if (x >= 0 && x < width) // if inbounds add it, else add 0 (which is the same as doing nothing)
+                            total += input[indexToPosition(inpos, inputStride)] * weight[indexToPosition(weightpos, weightStride)];
+                    }
+                }
+                out[indexToPosition(outpos, outStride)] = total;
+            }
+        }
+    }
+}
