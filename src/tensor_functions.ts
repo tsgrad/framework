@@ -193,6 +193,21 @@ export function unbroadcast(a: Tensor, original: Shape): Tensor{
     return res;
 }
 
+function tile2d(input: Tensor, kernel : [number, number]): [Tensor, number, number]{
+    // reshapes a Tensor of shape [batch, channel, height, width] to [batch, channel, newHeight, newWidth, kernelHeight * kernelWidth] returning the new tensor as well as the new height and width
+    // assumes that the input size is divisible by the kernel size
+    // also assumes stride to be equal to kernel size, so no overlapping stuff
+
+    const batch = input.shape()[0], channel = input.shape()[1], height = input.shape()[2], width = input.shape()[3];
+    const kh = kernel[0], kw = kernel[1];
+    if (height % kh !== 0 || width % kw !== 0) throw "Expected input size in tile2d to be divisible by kernel size";
+
+    const newHeight = height / kh;
+    const newWidth = width / kw;
+
+    return [input.view(batch, channel, newHeight, newWidth, kh * kw), newHeight, newWidth];
+}
+
 export class Neg extends TensorFunction{
     static forward(ctx: Context, a: Tensor): Tensor{
         return new Tensor(neg(a.data));
