@@ -111,7 +111,26 @@ interface Conv1dTask{
     kWidth: number
 }
 
-type Task = MapTask | ZipTask | ReduceTask | MatMulTask | Conv1dTask;
+interface Conv2dTask{
+    type: 'conv2d',
+    start: number,
+    end: number,
+    outBuffer: SharedArrayBuffer,
+    outShape: number[],
+    outStride: number[],
+    inBuffer: SharedArrayBuffer,
+    inStride: number[],
+    weightBuffer: SharedArrayBuffer,
+    weightStride: number[],
+    reverse: boolean,
+    inChannels: number,
+    inWidth: number,
+    inHeight: number,
+    kWidth: number,
+    kHeight: number
+}
+
+type Task = MapTask | ZipTask | ReduceTask | MatMulTask | Conv1dTask | Conv2dTask;
 
 const { workerId, syncBuffer } = workerData as {
     workerId: number;
@@ -250,6 +269,49 @@ function handleConv1d(task: Conv1dTask): void{
                     inpos[2] = x;
                     weightpos[2] = k;
                     total += inStorage[indexToPosition(inpos, task.inStride)] * weightStorage[indexToPosition(weightpos, task.weightStride)];
+                }
+            }
+        }
+        outStorage[indexToPosition(outpos, task.outStride)] = total;
+    }
+}
+
+function handleConv2d(task: Conv2dTask): void{
+    const outStorage = new Float32Array(task.outBuffer);
+    const inStorage = new Float32Array(task.inBuffer);
+    const weightStorage = new Float32Array(task.weightBuffer);
+
+     //          b, ic, k, w
+    let inpos = [0, 0, 0, 0];
+
+    //              oc,ic,kw,kh
+    let weightpos = [0, 0, 0, 0];
+
+    //            b, oc, h, w
+    let outpos = [0, 0, 0, 0];
+    for (let i = task.start; i < task.end; i++){
+        positionToIndex(i, task.outShape, outpos);
+        const b = outpos[0], oc = outpos[1], h = outpos[2], w = outpos[3];
+        inpos[0] = b;
+        weightpos[0] = oc;
+
+        let total = 0.0;
+        for (let ic = 0; ic < task.inChannels; ic++){
+            inpos[1] = ic;
+            weightpos[1] = ic;
+            for (let kh = 0; kh < task.kHeight; kh++){
+                let xh = task.reverse ? h - kh : h + kh;
+                if (xh >= 0 && xh < task.inHeight){
+                    inpos[2] = xh;
+                    weightpos[2] = kh;
+                    for (let kw = 0; kw < task.kWidth; kw++){
+                        let xw = task.reverse ? w - kw : w + kw;
+                        if (xw >= 0 && xw < task.inWidth){ // if inbounds add it, else add 0 (which is the same as doing nothing)
+                            inpos[3] = xw;
+                            weightpos[3] = kw;
+                            total += inStorage[indexToPosition(inpos, task.inStride)] * weightStorage[indexToPosition(weightpos, task.weightStride)];
+                        }
+                    }
                 }
             }
         }
