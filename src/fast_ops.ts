@@ -408,3 +408,112 @@ export function fastConv1d(out: Storage, outShape: Shape, outStride: Stride,
         }
     }
 }
+
+// Basically same thing as 1d but with height dimension added
+export function fastConv2d(out: Storage, outShape: Shape, outStride: Stride,
+    input: Storage, inputShape: Shape, inputStride: Stride,
+    weight: Storage, weightShape: Shape, weightStride: Stride,
+    reverse: boolean): void{
+    /*
+        Given input tensor shape of
+
+        `batch, inChannels, height, width`
+
+        and weight tensor shape of
+
+        `outChannels, inChannels, kHeight, kWidth`
+
+        Computes padded output of
+
+        `batch, outChannels, height, width`
+    */
+
+    if (inputShape.length !== 4) throw "unexpected inputShape size, expected 4 got: " + inputShape.length;
+
+    const batch = inputShape[0];
+    const inChannels = inputShape[1];
+    const height = inputShape[2];
+    const width = inputShape[3]; // width is the literal length of the input array
+    const outChannels = weightShape[0];
+    const kHeight = weightShape[2]; // k height is the height of the kernel
+    const kWidth = weightShape[3]; // k width is the width of the kernel
+
+    const outHeight = outShape[2];
+    const outWidth = outShape[3];
+
+    if (inChannels !== weightShape[1]) throw "in channels must be same between both input shape and weight shape";
+    if (outShape[0] !== batch || outShape[1] !== outChannels) throw "output shape is not the expected shape";
+
+    const size = batch * outChannels * outHeight * outWidth;
+    const work = size * inChannels * kWidth * kHeight;
+    
+    if (work >= THRESHOLD && isShared(out) && isShared(input) && isShared(weight)){
+        const pool = getPool();
+        if (pool){
+            pool.parallelFor(size, (start, end) => ({
+                type: 'conv2d',
+                start,
+                end,
+                outBuffer: out.buffer as SharedArrayBuffer,
+                outShape: Array.from(outShape),
+                outStride: Array.from(outStride),
+                inBuffer: input.buffer as SharedArrayBuffer,
+                inStride: Array.from(inputStride),
+                weightBuffer: weight.buffer as SharedArrayBuffer,
+                weightStride: Array.from(weightStride),
+                reverse,
+                inChannels,
+                inWidth: width,
+                inHeight: height,
+                kWidth,
+                kHeight
+            }));
+            return;
+        }
+    }
+    //          b, ic, k, w
+    let inpos = [0, 0, 0, 0];
+
+    //              oc,ic,kw,kh
+    let weightpos = [0, 0, 0, 0];
+
+    //            b, oc, h, w
+    let outpos = [0, 0, 0, 0];
+
+    // First 4 outer loops are to loop over each out[b, oc, h, w] then computation is done inside the inner loops
+    for (let b = 0; b < batch; b++){
+        inpos[0] = b;
+        outpos[0] = b;
+        for (let oc = 0; oc < outChannels; oc++){
+            outpos[1] = oc;
+            weightpos[0] = oc;
+            for (let h = 0; h < outHeight; h++){
+                outpos[2] = h;
+                for (let w = 0; w < outWidth; w++){
+                    outpos[3] = w;
+                    let total = 0.0;
+                    for (let ic = 0; ic < inChannels; ic++){
+                        inpos[1] = ic;
+                        weightpos[1] = ic;
+                        for (let kh = 0; kh < kHeight; kh++){
+                            let xh = reverse ? h - kh : h + kh;
+                            if (xh >= 0 && xh < height){
+                                inpos[2] = xh;
+                                weightpos[2] = kh;
+                                for (let kw = 0; kw < kWidth; kw++){
+                                    let xw = reverse ? w - kw : w + kw;
+                                    if (xw >= 0 && xw < width){ // if inbounds add it, else add 0 (which is the same as doing nothing)
+                                        inpos[3] = xw;
+                                        weightpos[3] = kw;
+                                        total += input[indexToPosition(inpos, inputStride)] * weight[indexToPosition(weightpos, weightStride)];
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    out[indexToPosition(outpos, outStride)] = total;
+                }
+            }
+        }
+    }
+}
