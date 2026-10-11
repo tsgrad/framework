@@ -4,7 +4,7 @@ import { Context } from "./autodiff.js";
 import * as operators from "./operators.js";
 // swap out if wanted, tensor_ops has non-multithreaded, the fastTensor stuff is multithreaded
 //import { tensorMap, tensorZip, tensorReduce } from "./tensor_ops.js";
-import {fastTensorMap as tensorMap, fastTensorZip as tensorZip, fastTensorReduce as tensorReduce, fastMatMul as matMul, fastConv1d as tensorConv1d} from "./fast_ops.js";
+import {fastTensorMap as tensorMap, fastTensorZip as tensorZip, fastTensorReduce as tensorReduce, fastMatMul as matMul, fastConv1d as tensorConv1d, fastConv2d as tensorConv2d} from "./fast_ops.js";
 
 export function neg(a: TensorData): TensorData{
     const out = TensorData.fill(a.shape, 0);
@@ -115,6 +115,18 @@ export function conv1d(input: TensorData, weight: TensorData, reverse: boolean =
 
     let out = TensorData.fill([batch, outChannel, outWidth ? outWidth : w]);
     tensorConv1d(out._storage, out._shape, out._stride, input._storage, input._shape, input._stride, weight._storage, weight._shape, weight._stride, reverse);
+    return out;
+}
+
+//                                                                                      new h then w
+export function conv2d(input: TensorData, weight: TensorData, reverse: boolean = false, ...outDims : number[]): TensorData{
+    const batch = input._shape[0], inChannels = input._shape[1], h = outDims[0] ?? input._shape[2], w = outDims[1] ?? input._shape[3];
+    const outChannel = weight._shape[0], inChannels2 = weight._shape[1], kh = weight._shape[2], kw = weight._shape[3];
+
+    if (inChannels != inChannels2) throw "in channels must be same between both input shape and weight shape";
+
+    let out = TensorData.fill([batch, outChannel, h, w]);
+    tensorConv2d(out._storage, out._shape, out._stride, input._storage, input._shape, input._stride, weight._storage, weight._shape, weight._stride, reverse);
     return out;
 }
 
@@ -325,7 +337,23 @@ export class Conv1d extends TensorFunction{
 
     static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
         let [input, weight] = ctx.savedValues;
+
+        // derivative of input, then weight
         return [new Tensor(conv1d(gradOutput.data, weight.permute(1, 0, 2).data, true)), new Tensor(conv1d(input.permute(1, 0, 2).data, gradOutput.permute(1, 0, 2).data, false, weight.shape()[2])).permute(1, 0, 2)];
+    }
+}
+
+export class Conv2d extends TensorFunction{
+    static forward(ctx: Context, input: Tensor, weight: Tensor): Tensor{
+        ctx.saveForBackward(input, weight);
+        return new Tensor(conv2d(input.data, weight.data));
+    }
+
+    static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
+        let [input, weight] = ctx.savedValues;
+
+        // derivative of input, then weight
+        return [new Tensor(conv2d(gradOutput.data, weight.permute(1, 0, 2, 3).data, true)), new Tensor(conv2d(input.permute(1, 0, 2, 3).data, gradOutput.permute(1, 0, 2, 3).data, false, weight.shape()[2], weight.shape()[3])).permute(1, 0, 2, 3)];
     }
 }
 
