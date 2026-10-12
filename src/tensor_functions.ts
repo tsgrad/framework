@@ -5,6 +5,7 @@ import * as operators from "./operators.js";
 // swap out if wanted, tensor_ops has non-multithreaded, the fastTensor stuff is multithreaded
 //import { tensorMap, tensorZip, tensorReduce } from "./tensor_ops.js";
 import {fastTensorMap as tensorMap, fastTensorZip as tensorZip, fastTensorReduce as tensorReduce, fastMatMul as matMul, fastConv1d as tensorConv1d, fastConv2d as tensorConv2d} from "./fast_ops.js";
+import { randomFloat } from "./helperfunctions.js";
 
 export function neg(a: TensorData): TensorData{
     const out = TensorData.fill(a.shape, 0);
@@ -48,6 +49,14 @@ export function id(a: TensorData): TensorData{
     return out;
 }
 
+export function max(input: TensorData, dim: number): TensorData{
+    const outShape = [...input._shape];
+    outShape[dim] = 1;
+    const out = TensorData.fill(outShape)
+    tensorReduce(operators.max, -Infinity)(out._storage, out._shape, out._stride, input._storage, input._shape, input._stride, dim);
+    return out;
+}
+
 export function add(a: TensorData, b: TensorData): TensorData{
     const outShape = shapeBroadcast(a._shape, b._shape);
     const out = TensorData.fill(outShape, 0);
@@ -61,7 +70,6 @@ export function mul(a: TensorData, b: TensorData): TensorData{
     tensorZip(operators.mul)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride, b._storage, b._shape, b._stride);
     return out;
 }
-
 
 export function lt(a: TensorData, b: TensorData): TensorData{
     const outShape = shapeBroadcast(a._shape, b._shape);
@@ -205,8 +213,63 @@ function tile2d(input: Tensor, kernel : [number, number]): [Tensor, number, numb
     const newHeight = height / kh;
     const newWidth = width / kw;
 
-    return [input.view(batch, channel, newHeight, newWidth, kh * kw), newHeight, newWidth];
+    return [input.view(batch, channel, newHeight, kh, newWidth, kw).permute(0, 1, 2, 4, 3, 5).tocontiguous().view(batch, channel, newHeight, newWidth, kh * kw), newHeight, newWidth];
 }
+
+function avgpool2d(input: Tensor, kernel: [number, number]): Tensor{
+    const batch = input.shape()[0], channel = input.shape()[1], height = input.shape()[2], width = input.shape()[3];
+    const kh = kernel[0], kw = kernel[1];
+    const [tiled, newHeight, newWidth] = tile2d(input, kernel);
+
+    //[batch, channel, newHeight, newWidth, kernelHeight * kernelWidth]
+    // .sum(4) means sum along the tiled dimension --^
+    return tiled.sum(4).div(kh * kw).view(batch, channel, newHeight, newWidth);
+}
+
+function maxpool2d(input: Tensor, kernel: [number, number]): Tensor{
+    const batch = input.shape()[0], channel = input.shape()[1], height = input.shape()[2], width = input.shape()[3];
+    const kh = kernel[0], kw = kernel[1];
+    const [tiled, newHeight, newWidth] = tile2d(input, kernel);
+
+    return (new Tensor(max(tiled.data, 4))).view(batch, channel, newHeight, newWidth);
+}
+
+function rparam(shape: Shape, lowerBound: number = -1, upperBound: number = 1): Tensor{
+    // Random tensor where each cell is -1 to 1 with shape as the shape
+    const data = TensorData.fill(shape);
+    for (let i = 0; i < data._storage.length; i++) {
+        data._storage[i] = randomFloat(lowerBound, upperBound);
+    }
+    const tensor = new Tensor(data);
+    return tensor;
+}
+
+function dropout(input: Tensor, rate: number, ignore: boolean = false): Tensor{
+    if (rate < 0.0 || rate > 1.0) throw "rate must be in [0, 1)";
+
+    if (ignore || rate == 0.0) return input;
+
+    const threshold = TensorData.fill(input.shape(), 1 - rate);
+    const random = rparam(input.shape(), 0, 1);
+
+    const mask = new Tensor(lt(random.data, threshold));
+    return input.mul(mask).div(1.0 - rate);
+}
+
+function argmax(input: Tensor, dim: number): Tensor{
+    return new Tensor(max(input.data, dim)).eq(input);
+}
+
+function softmax(input: Tensor, dim: number): Tensor{
+    const exps = input.sub(new Tensor(max(input.data, dim))).exp();
+    return exps.div(exps.sum(dim));
+}
+
+function logsoftmax(input: Tensor, dim: number): Tensor{
+    const shifted = input.sub(new Tensor(max(input.data, dim)));
+    return shifted.sub(shifted.exp().sum(dim).log());
+}
+
 
 export class Neg extends TensorFunction{
     static forward(ctx: Context, a: Tensor): Tensor{
@@ -369,6 +432,22 @@ export class Conv2d extends TensorFunction{
 
         // derivative of input, then weight
         return [new Tensor(conv2d(gradOutput.data, weight.permute(1, 0, 2, 3).data, true)), new Tensor(conv2d(input.permute(1, 0, 2, 3).data, gradOutput.permute(1, 0, 2, 3).data, false, weight.shape()[2], weight.shape()[3])).permute(1, 0, 2, 3)];
+    }
+}
+
+export class Max extends TensorFunction{
+    static forward(ctx: Context, input: Tensor, dim: Tensor): Tensor{
+        const d = dim.item();
+        ctx.saveForBackward(input, dim);
+        return new Tensor(max(input.data, d));
+    }
+
+    static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
+        let [input, dim] = ctx.savedValues;
+        const d = dim.item();
+
+        //                                          Dim has no derivative so just return a tensor with [0]
+        return [argmax(input, d).mul(gradOutput), new Tensor(TensorData.fill([1], 0))];
     }
 }
 
