@@ -236,7 +236,7 @@ export class ImageTrain{
         this.optim = new SGDMomentum(this.model.parameters(), learningRate);
         this.learningRate = learningRate;
         this.maxEpochs = maxEpochs;
-        
+
         const losses: number[] = [];
 
         const starttime = performance.now();
@@ -264,9 +264,9 @@ export class ImageTrain{
                 losses.push(loss.item());
             }
 
-            if (epoch % 10 === 0 || epoch == maxEpochs){
+            if (epoch % 1 === 0 || epoch == maxEpochs){
                 const correct = this.evaluate(dataVal);
-                logFn(epoch, totalLoss, correct, losses);
+                logFn(epoch, totalLoss, correct, dataVal[0].length);
             }
         }
 
@@ -274,3 +274,17 @@ export class ImageTrain{
         console.log(`Time to train took ${endtime - starttime}`);
     }
 }
+
+
+
+
+
+// Actual testing down here
+import { fileURLToPath } from "node:url";
+import { loadMnist } from "./mnist_data.js";
+const dataDirectory = fileURLToPath(new URL("./data/mnist/", import.meta.url));
+const dataTrain = await loadMnist(dataDirectory, "train", 0, 500);
+const dataVal = await loadMnist(dataDirectory, "train", 10000, 500);
+
+const trainer = new ImageTrain();
+trainer.train(dataTrain, dataVal, 0.5, 10);
