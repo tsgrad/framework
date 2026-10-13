@@ -280,18 +280,6 @@ export class ImageTrain{
                 loss.backward();
                 this.optim.step();
 
-                
-                if (epoch === 1 && start == 0) {
-                    for (const [name, parameter] of this.model.namedParameters()) {
-                        const tensor = parameter.value as Tensor;
-                        const gradSum = tensor.grad?.data._storage.reduce(
-                            (sum, value) => sum + Math.abs(value),
-                            0,
-                        );
-                        console.log(name, "gradient:", gradSum);
-                    }
-                }
-
                 totalLoss += loss.item();
                 losses.push(loss.item());
             }
