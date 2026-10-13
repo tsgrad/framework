@@ -326,6 +326,7 @@ parentPort!.on('message', (task: Task) => {
         case 'red':    handleReduce(task); break;
         case 'mul':    handleMatMul(task); break;
         case 'conv1d': handleConv1d(task); break;
+        case 'conv2d': handleConv2d(task); break;
     }
 
     Atomics.store(syncArray, workerId, 1);

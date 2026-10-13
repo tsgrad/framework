@@ -6,6 +6,7 @@ import * as operators from "../src/operators.js"
 import { Graph } from "../src/datasets.js";
 import { Optimizer, SGD, SGDMomentum } from "../src/optim.js";
 import { dropout, logsoftmax, maxpool2d } from "../src/tensor_functions.js";
+import { destroyPool } from "../src/fast_ops.js";
 
 const BATCH = 16;
 
@@ -28,6 +29,25 @@ function RParam(...shape: Shape): Tensor{
         data._storage[i] = randomFloat(-0.05, 0.05);
     }
     const tensor = new Tensor(data);
+    tensor._requiresGrad(true);
+    return tensor;
+}
+
+function HeParam(fanIn: number, ...shape: Shape): Tensor {
+    const bound = Math.sqrt(6 / fanIn);
+    const data = TensorData.fill(shape);
+
+    for (let i = 0; i < data._storage.length; i++) {
+        data._storage[i] = randomFloat(-bound, bound);
+    }
+
+    const tensor = new Tensor(data);
+    tensor._requiresGrad(true);
+    return tensor;
+}
+
+function ZeroParam(...shape: Shape): Tensor {
+    const tensor = new Tensor(TensorData.fill(shape, 0));
     tensor._requiresGrad(true);
     return tensor;
 }
@@ -80,8 +100,8 @@ export class Linear extends Layer{
     bias: Parameter;
     constructor(inSize: number, outSize: number){
         super(inSize, outSize);
-        this.weights = this.addParameter(`weights`, RParam(inSize, outSize));
-        this.bias = this.addParameter(`bias`, RParam(outSize));
+        this.weights = this.addParameter(`weights`, HeParam(inSize, inSize, outSize));
+        this.bias = this.addParameter(`bias`, ZeroParam(outSize));
     }
 
     forward(inputs: Tensor): Tensor{
@@ -108,8 +128,8 @@ export class Conv2d extends Layer{
     bias: Parameter;
     constructor(inChannels: number, outChannels: number, kh: number, kw: number){
         super(inChannels, outChannels);
-        this.weights = this.addParameter(`weights`, RParam(outChannels, inChannels, kh, kw));
-        this.bias = this.addParameter(`bias`, RParam(outChannels, 1, 1));
+        this.weights = this.addParameter(`weights`, HeParam(inChannels * kh * kw, outChannels, inChannels, kh, kw));
+        this.bias = this.addParameter(`bias`, ZeroParam(outChannels, 1, 1));
     }
 
     forward(inputs: Tensor): Tensor{
@@ -139,7 +159,7 @@ export class MNistNetwork extends Network {
         // 8 channels × 7 × 7 = 392
         let h = pooled.view(batch, 392);
         h = this.linear1.forward(h).relu();
-        h = dropout(h, 0.25, !this.training);
+        //h = dropout(h, 0.25, !this.training);
         h = this.linear2.forward(h);
         return logsoftmax(h, 1);
     }
@@ -233,7 +253,7 @@ export class ImageTrain{
         if (trainImages.length !== trainLabels.length) throw "Training image and label counts differ";
         
         this.model = new MNistNetwork();
-        this.optim = new SGDMomentum(this.model.parameters(), learningRate);
+        this.optim = new SGD(this.model.parameters(), learningRate);
         this.learningRate = learningRate;
         this.maxEpochs = maxEpochs;
 
@@ -260,6 +280,18 @@ export class ImageTrain{
                 loss.backward();
                 this.optim.step();
 
+                
+                if (epoch === 1 && start == 0) {
+                    for (const [name, parameter] of this.model.namedParameters()) {
+                        const tensor = parameter.value as Tensor;
+                        const gradSum = tensor.grad?.data._storage.reduce(
+                            (sum, value) => sum + Math.abs(value),
+                            0,
+                        );
+                        console.log(name, "gradient:", gradSum);
+                    }
+                }
+
                 totalLoss += loss.item();
                 losses.push(loss.item());
             }
@@ -283,8 +315,13 @@ export class ImageTrain{
 import { fileURLToPath } from "node:url";
 import { loadMnist } from "./mnist_data.js";
 const dataDirectory = fileURLToPath(new URL("./data/mnist/", import.meta.url));
-const dataTrain = await loadMnist(dataDirectory, "train", 0, 500);
+const dataTrain = await loadMnist(dataDirectory, "train", 0, 5000);
 const dataVal = await loadMnist(dataDirectory, "train", 10000, 500);
 
 const trainer = new ImageTrain();
-trainer.train(dataTrain, dataVal, 0.5, 10);
+try{
+    trainer.train(dataTrain, dataVal, 0.01, 50);
+}
+finally{
+    destroyPool();
+}

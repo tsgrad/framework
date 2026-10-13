@@ -416,7 +416,7 @@ export class Conv1d extends TensorFunction{
         let [input, weight] = ctx.savedValues;
 
         // derivative of input, then weight
-        return [new Tensor(conv1d(gradOutput.data, weight.permute(1, 0, 2).data, true)), new Tensor(conv1d(input.permute(1, 0, 2).data, gradOutput.permute(1, 0, 2).data, false, weight.shape()[2])).permute(1, 0, 2)];
+        return [new Tensor(conv1d(gradOutput.data, weight.permute(1, 0, 2).data, true)), new Tensor(conv1d(input.permute(1, 0, 2).data, gradOutput.permute(1, 0, 2).data, false, weight.shape()[2])).permute(1, 0, 2).tocontiguous()];
     }
 }
 
@@ -430,7 +430,7 @@ export class Conv2d extends TensorFunction{
         let [input, weight] = ctx.savedValues;
 
         // derivative of input, then weight
-        return [new Tensor(conv2d(gradOutput.data, weight.permute(1, 0, 2, 3).data, true)), new Tensor(conv2d(input.permute(1, 0, 2, 3).data, gradOutput.permute(1, 0, 2, 3).data, false, weight.shape()[2], weight.shape()[3])).permute(1, 0, 2, 3)];
+        return [new Tensor(conv2d(gradOutput.data, weight.permute(1, 0, 2, 3).data, true)), new Tensor(conv2d(input.permute(1, 0, 2, 3).data, gradOutput.permute(1, 0, 2, 3).data, false, weight.shape()[2], weight.shape()[3])).permute(1, 0, 2, 3).tocontiguous()];
     }
 }
 
