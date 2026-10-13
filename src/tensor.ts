@@ -1,6 +1,6 @@
 import { backpropagate, Context, Variable } from "./autodiff.js";
 import { TensorData, UserShape, Shape } from "./tensor_data.js";
-import { Add, TensorFunction, Neg, Mul, Inv, LT, EQ, IsClose, Sigmoid, ReLU, Log, Exp, Sum, Permute, ToContiguous, View, MatMul, Conv1d, Conv2d } from "./tensor_functions.js";
+import { Add, TensorFunction, Neg, Mul, Inv, LT, EQ, IsClose, Sigmoid, ReLU, Log, Exp, Sum, Permute, ToContiguous, View, MatMul, Conv1d, Conv2d, Max } from "./tensor_functions.js";
 
 export class History{
     lastFn : typeof TensorFunction | undefined;
@@ -144,6 +144,10 @@ export class Tensor implements Variable{
 
     conv2d(weight: Tensor): Tensor{
         return Tensor.apply(Conv2d, this, weight);
+    }
+
+    max(dim: number | Tensor): Tensor{
+        return Tensor.apply(Max, this, this._ensureTensor(dim));
     }
 
     sum(dim: number): Tensor{

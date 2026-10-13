@@ -201,7 +201,7 @@ export function unbroadcast(a: Tensor, original: Shape): Tensor{
     return res;
 }
 
-function tile2d(input: Tensor, kernel : [number, number]): [Tensor, number, number]{
+export function tile2d(input: Tensor, kernel : [number, number]): [Tensor, number, number]{
     // reshapes a Tensor of shape [batch, channel, height, width] to [batch, channel, newHeight, newWidth, kernelHeight * kernelWidth] returning the new tensor as well as the new height and width
     // assumes that the input size is divisible by the kernel size
     // also assumes stride to be equal to kernel size, so no overlapping stuff
@@ -216,7 +216,7 @@ function tile2d(input: Tensor, kernel : [number, number]): [Tensor, number, numb
     return [input.view(batch, channel, newHeight, kh, newWidth, kw).permute(0, 1, 2, 4, 3, 5).tocontiguous().view(batch, channel, newHeight, newWidth, kh * kw), newHeight, newWidth];
 }
 
-function avgpool2d(input: Tensor, kernel: [number, number]): Tensor{
+export function avgpool2d(input: Tensor, kernel: [number, number]): Tensor{
     const batch = input.shape()[0], channel = input.shape()[1], height = input.shape()[2], width = input.shape()[3];
     const kh = kernel[0], kw = kernel[1];
     const [tiled, newHeight, newWidth] = tile2d(input, kernel);
@@ -226,15 +226,15 @@ function avgpool2d(input: Tensor, kernel: [number, number]): Tensor{
     return tiled.sum(4).div(kh * kw).view(batch, channel, newHeight, newWidth);
 }
 
-function maxpool2d(input: Tensor, kernel: [number, number]): Tensor{
+export function maxpool2d(input: Tensor, kernel: [number, number]): Tensor{
     const batch = input.shape()[0], channel = input.shape()[1], height = input.shape()[2], width = input.shape()[3];
     const kh = kernel[0], kw = kernel[1];
     const [tiled, newHeight, newWidth] = tile2d(input, kernel);
 
-    return (new Tensor(max(tiled.data, 4))).view(batch, channel, newHeight, newWidth);
+    return tiled.max(4).view(batch, channel, newHeight, newWidth);
 }
 
-function rparam(shape: Shape, lowerBound: number = -1, upperBound: number = 1): Tensor{
+export function rparam(shape: Shape, lowerBound: number = -1, upperBound: number = 1): Tensor{
     // Random tensor where each cell is -1 to 1 with shape as the shape
     const data = TensorData.fill(shape);
     for (let i = 0; i < data._storage.length; i++) {
@@ -244,7 +244,7 @@ function rparam(shape: Shape, lowerBound: number = -1, upperBound: number = 1): 
     return tensor;
 }
 
-function dropout(input: Tensor, rate: number, ignore: boolean = false): Tensor{
+export function dropout(input: Tensor, rate: number, ignore: boolean = false): Tensor{
     if (rate < 0.0 || rate > 1.0) throw "rate must be in [0, 1)";
 
     if (ignore || rate == 0.0) return input;
@@ -256,20 +256,19 @@ function dropout(input: Tensor, rate: number, ignore: boolean = false): Tensor{
     return input.mul(mask).div(1.0 - rate);
 }
 
-function argmax(input: Tensor, dim: number): Tensor{
+export function argmax(input: Tensor, dim: number): Tensor{
     return new Tensor(max(input.data, dim)).eq(input);
 }
 
-function softmax(input: Tensor, dim: number): Tensor{
+export function softmax(input: Tensor, dim: number): Tensor{
     const exps = input.sub(new Tensor(max(input.data, dim))).exp();
     return exps.div(exps.sum(dim));
 }
 
-function logsoftmax(input: Tensor, dim: number): Tensor{
+export function logsoftmax(input: Tensor, dim: number): Tensor{
     const shifted = input.sub(new Tensor(max(input.data, dim)));
     return shifted.sub(shifted.exp().sum(dim).log());
 }
-
 
 export class Neg extends TensorFunction{
     static forward(ctx: Context, a: Tensor): Tensor{
