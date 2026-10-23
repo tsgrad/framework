@@ -49,6 +49,7 @@ add_library(tsgrad_native SHARED
     src/cpu/elementwise.cpp
     src/cpu/reduce.cpp
     src/cpu/matmul.cpp
+    src/cpu/conv.cpp
 )
 
 # native.ts loads this exact file. Per-config output dirs are set so Visual Studio
@@ -110,6 +111,7 @@ if(TSGRAD_CUDA)
             src/cuda/context.cu
             src/cuda/elementwise.cu
             src/cuda/matmul.cu
+            src/cuda/conv.cu
         )
         target_link_libraries(tsgrad_native PRIVATE CUDA::cudart)
         target_compile_definitions(tsgrad_native PRIVATE TSGRAD_HAS_CUDA)
