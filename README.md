@@ -1,3 +1,4 @@
+# This README is outdated, this repo has advanced a lot lol I'll update this later
 # tsgrad
 
 A small PyTorch-like ML framework built from scratch in TypeScript, with no external ML libraries, all math implemented by hand.
