@@ -32,7 +32,7 @@ void conv1d(const View& out, const View& input, const View& weight, bool reverse
         std::span<const int32_t> in_view{input.shape, static_cast<size_t>(input.rank)};
         std::span<const int32_t> weight_view{weight.shape, static_cast<size_t>(weight.rank)};
         std::span<const int32_t> out_view{out.shape, static_cast<size_t>(out.rank)};
-        throw std::runtime_error(std::format("Incompatible shapes for {}, input: {:n}, weight: {:n}, out: {:n}", name, in_view, weight_view, out_view));
+        throw std::runtime_error(std::format("Incompatible shapes for conv1d, input: {:n}, weight: {:n}, out: {:n}", in_view, weight_view, out_view));
     }
 
     const long long out_size = static_cast<long long>(batch) * static_cast<long long>(out_channels) * static_cast<long long>(out_width);
@@ -82,7 +82,7 @@ void conv2d(const View& out, const View& input, const View& weight, bool reverse
         std::span<const int32_t> in_view{input.shape, static_cast<size_t>(input.rank)};
         std::span<const int32_t> weight_view{weight.shape, static_cast<size_t>(weight.rank)};
         std::span<const int32_t> out_view{out.shape, static_cast<size_t>(out.rank)};
-        throw std::runtime_error(std::format("Incompatible shapes for {}, input: {:n}, weight: {:n}, out: {:n}", name, in_view, weight_view, out_view));
+        throw std::runtime_error(std::format("Incompatible shapes for conv2d, input: {:n}, weight: {:n}, out: {:n}", in_view, weight_view, out_view));
     }
 
     const long long spatial = static_cast<long long>(out_height) * static_cast<long long>(out_width);
