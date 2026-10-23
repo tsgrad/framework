@@ -45,6 +45,15 @@ void reduce_prod(const View& out, const View& in, int32_t dim);
 // Rank-2 matmul. out is [M, N], a is [M, K], b is [K, N], strides included.
 void matmul(const View& out, const View& a, const View& b);
 
+// conv1d: out [batch, outChannels, outWidth], input [batch, inChannels, width],
+// weight [outChannels, inChannels, kWidth].
+// conv2d: out [batch, outChannels, outHeight, outWidth],
+// input [batch, inChannels, height, width], weight [outChannels, inChannels, kHeight, kWidth].
+// reverse walks the kernel backward. Samples outside the input contribute 0.
+// Same indexing as fastConv1d / fastConv2d. Strides included.
+void conv1d(const View& out, const View& input, const View& weight, bool reverse);
+void conv2d(const View& out, const View& input, const View& weight, bool reverse);
+
 // Same signatures as above. Defined in src/cuda/*.cu when TSGRAD_HAS_CUDA is set.
 // The pointers in these Views are still host pointers. The .cu function copies
 // to the device, launches, and copies back before it returns.
@@ -85,6 +94,9 @@ void reduce_sum(const View& out, const View& in, int32_t dim);
 void reduce_prod(const View& out, const View& in, int32_t dim);
 
 void matmul(const View& out, const View& a, const View& b);
+
+void conv1d(const View& out, const View& input, const View& weight, bool reverse);
+void conv2d(const View& out, const View& input, const View& weight, bool reverse);
 
 } // namespace cuda
 } // namespace tsgrad
