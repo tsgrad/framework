@@ -12,7 +12,7 @@
 cmake_minimum_required(VERSION 3.30)
 project(tsgrad_native LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(TSGRAD_CUDA "Compile the CUDA launchers in src/cuda" ON)
@@ -103,7 +103,7 @@ if(TSGRAD_CUDA)
     check_language(CUDA)
     if(CMAKE_CUDA_COMPILER)
         enable_language(CUDA)
-        set(CMAKE_CUDA_STANDARD 17)
+        set(CMAKE_CUDA_STANDARD 23)
         set(CMAKE_CUDA_STANDARD_REQUIRED ON)
         find_package(CUDAToolkit REQUIRED)
         target_sources(tsgrad_native PRIVATE
