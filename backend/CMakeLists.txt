@@ -9,7 +9,7 @@
 # addon.cc calls the CPU entry points. A CPU function may call the matching
 # tsgrad::cuda function once you write that handoff.
 
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.30)
 project(tsgrad_native LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -20,7 +20,7 @@ option(TSGRAD_CUDA "Compile the CUDA launchers in src/cuda" ON)
 set(REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/..")
 
 execute_process(
-    COMMAND node -p "require('node-addon-api').include"
+    COMMAND node -p "require('path').resolve(require('node-addon-api').include_dir)"
     WORKING_DIRECTORY "${REPO_ROOT}"
     OUTPUT_VARIABLE NODE_ADDON_API_DIR
     OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -95,7 +95,7 @@ if(MSVC)
 elseif(APPLE)
     target_link_options(tsgrad_native PRIVATE "-undefined" "dynamic_lookup")
 else()
-    target_link_options(tsgrad_native PRIVATE "-Wl,--unresolved-symbols=ignore-in-shared-libs")
+    target_link_options(tsgrad_native PRIVATE "-Wl,--unresolved-symbols=ignore-all")
 endif()
 
 if(TSGRAD_CUDA)
@@ -117,3 +117,9 @@ if(TSGRAD_CUDA)
         message(WARNING "nvcc was not found. The addon will contain the CPU entry points only. src/cuda/*.cu stays in the tree.")
     endif()
 endif()
+
+if(MSVC)
+    set(OpenMP_RUNTIME_MSVC "llvm")
+endif()
+find_package(OpenMP REQUIRED)
+target_link_libraries(tsgrad_native PRIVATE OpenMP::OpenMP_CXX)
