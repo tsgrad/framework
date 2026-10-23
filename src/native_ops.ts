@@ -1,6 +1,6 @@
 import * as operators from './operators.js';
 import { tensorMap as slowMap, tensorReduce as slowReduce, tensorZip as slowZip } from './tensor_ops.js';
-import { fastMatMul } from './fast_ops.js';
+import { fastMatMul, fastConv1d, fastConv2d } from './fast_ops.js';
 import { native } from './native.js';
 import type { Shape, Storage, Stride } from './tensor_data.js';
 
@@ -51,4 +51,30 @@ export function matMul(
         return;
     }
     native.matmul(out, outShape, outStride, aStorage, aShape, aStride, bStorage, bShape, bStride);
+}
+
+export function tensorConv1d(
+    out: Storage, outShape: Shape, outStride: Stride,
+    input: Storage, inShape: Shape, inStride: Stride,
+    weight: Storage, weightShape: Shape, weightStride: Stride,
+    reverse: boolean,
+): void {
+    if (!native) {
+        fastConv1d(out, outShape, outStride, input, inShape, inStride, weight, weightShape, weightStride, reverse);
+        return;
+    }
+    native.conv1d(out, outShape, outStride, input, inShape, inStride, weight, weightShape, weightStride, reverse);
+}
+
+export function tensorConv2d(
+    out: Storage, outShape: Shape, outStride: Stride,
+    input: Storage, inShape: Shape, inStride: Stride,
+    weight: Storage, weightShape: Shape, weightStride: Stride,
+    reverse: boolean,
+): void {
+    if (!native) {
+        fastConv2d(out, outShape, outStride, input, inShape, inStride, weight, weightShape, weightStride, reverse);
+        return;
+    }
+    native.conv2d(out, outShape, outStride, input, inShape, inStride, weight, weightShape, weightStride, reverse);
 }

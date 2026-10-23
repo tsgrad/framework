@@ -25,6 +25,13 @@ export type ReduceNative = (
     dim: number,
 ) => void;
 
+export type ConvNative = (
+    out: Storage, outShape: Shape, outStride: Stride,
+    input: Storage, inShape: Shape, inStride: Stride,
+    weight: Storage, weightShape: Shape, weightStride: Stride,
+    reverse: boolean,
+) => void;
+
 // Names match the strings addon.cc puts on `exports`.
 export type NativeAddon = {
     mapNeg: MapNative;
@@ -43,6 +50,8 @@ export type NativeAddon = {
     reduceSum: ReduceNative;
     reduceProd: ReduceNative;
     matmul: ZipNative;
+    conv1d: ConvNative;
+    conv2d: ConvNative;
 };
 
 // Missing .node means every caller stays on the TypeScript loops.
