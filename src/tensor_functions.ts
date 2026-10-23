@@ -4,7 +4,8 @@ import { Context } from "./autodiff.js";
 import * as operators from "./operators.js";
 // swap out if wanted, tensor_ops has non-multithreaded, the fastTensor stuff is multithreaded
 //import { tensorMap, tensorZip, tensorReduce } from "./tensor_ops.js";
-import {fastTensorMap as tensorMap, fastTensorZip as tensorZip, fastTensorReduce as tensorReduce, fastMatMul as matMul, fastConv1d as tensorConv1d, fastConv2d as tensorConv2d} from "./fast_ops.js";
+import {/*fastTensorMap as tensorMap, fastTensorZip as tensorZip, fastTensorReduce as tensorReduce, */fastMatMul as matMul, fastConv1d as tensorConv1d, fastConv2d as tensorConv2d} from "./fast_ops.js";
+import {tensorMap, tensorZip, tensorReduce } from "./native_ops.js"
 import { randomFloat } from "./helperfunctions.js";
 
 export function neg(a: TensorData): TensorData{
