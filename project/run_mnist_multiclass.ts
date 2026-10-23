@@ -253,7 +253,7 @@ export class ImageTrain{
         if (trainImages.length !== trainLabels.length) throw "Training image and label counts differ";
         
         this.model = new MNistNetwork();
-        this.optim = new SGD(this.model.parameters(), learningRate);
+        this.optim = new SGDMomentum(this.model.parameters(), learningRate);
         this.learningRate = learningRate;
         this.maxEpochs = maxEpochs;
 
@@ -303,12 +303,12 @@ export class ImageTrain{
 import { fileURLToPath } from "node:url";
 import { loadMnist } from "./mnist_data.js";
 const dataDirectory = fileURLToPath(new URL("./data/mnist/", import.meta.url));
-const dataTrain = await loadMnist(dataDirectory, "train", 0, 5000);
+const dataTrain = await loadMnist(dataDirectory, "train", 0, 500);
 const dataVal = await loadMnist(dataDirectory, "train", 10000, 500);
 
 const trainer = new ImageTrain();
 try{
-    trainer.train(dataTrain, dataVal, 0.01, 50);
+    trainer.train(dataTrain, dataVal, 0.01, 10);
 }
 finally{
     destroyPool();

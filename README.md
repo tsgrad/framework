@@ -28,6 +28,16 @@ export class SimpleNetwork extends Network {
   }
 }
 ```
+  
+# To download and test on the mnist dataset run the following from inside framework
+```bash
+mkdir project\data\mnist
 
+curl.exe -L https://ossci-datasets.s3.amazonaws.com/mnist/train-images-idx3-ubyte.gz -o project\data\mnist\train-images-idx3-ubyte.gz
+curl.exe -L https://ossci-datasets.s3.amazonaws.com/mnist/train-labels-idx1-ubyte.gz -o project\data\mnist\train-labels-idx1-ubyte.gz
+curl.exe -L https://ossci-datasets.s3.amazonaws.com/mnist/t10k-images-idx3-ubyte.gz -o project\data\mnist\t10k-images-idx3-ubyte.gz
+curl.exe -L https://ossci-datasets.s3.amazonaws.com/mnist/t10k-labels-idx1-ubyte.gz -o project\data\mnist\t10k-labels-idx1-ubyte.gz
+```  
+  
 ## Roadmap  
 Working on tensors now, then CUDA next.  
