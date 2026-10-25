@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef TSGRAD_HAS_CUDA
+    #define TSGRAD_HAS_CUDA 0
+#endif
+
 #include <cstdint>
 
 // Host-side view of one tensor argument.
@@ -62,6 +66,7 @@ namespace cuda {
 class Context {
 public:
     static Context& get();
+    void* getStream();
     void synchronize();
     int device() const;
 
