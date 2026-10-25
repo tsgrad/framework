@@ -3,6 +3,7 @@
 #include "cudaops.hpp"
 #include <format>
 #include <cuda_runtime.h>
+#include <limits>
 
 // Host functions here are tsgrad::cuda::*. The CPU functions in
 // src/cpu/elementwise.cpp and src/cpu/reduce.cpp are what addon.cc calls.
@@ -81,14 +82,27 @@ __global__ void zip_kernel_contiguous(float* out, const float* a, const float* b
     out[i] = Func(a[i], b[i]);
 }
 
-__global__ void reduce_sum_kernel(
-    float* out, const int32_t* out_shape, const int32_t* out_stride,
-    const float* in, const int32_t* in_shape, const int32_t* in_stride,
-    int32_t rank, int32_t dim) {
-    // one thread per output element, fold `dim` the way tensorReduce does
-    (void)out; (void)out_shape; (void)out_stride;
-    (void)in; (void)in_shape; (void)in_stride;
-    (void)rank; (void)dim;
+template <float (*Func)(float, float)>
+__global__ void reduce_kernel(float* out, const int32_t* out_shape, const int32_t* out_stride,
+    const float* in, const int32_t* in_shape, const int32_t* in_stride, int32_t rank, int32_t dim, float base, long long n) {
+    long long i = static_cast<long long>(blockIdx.x) * blockDim.x + threadIdx.x;
+
+    if (i >= n) return;
+
+    int32_t dimSize = in_shape[dim];
+    int32_t out_index[16];
+
+    position_to_index(i, out_shape, out_index, rank);
+    int32_t temp = out_index[dim];
+    float cur = base;
+
+    for (int32_t j = 0; j < dimSize; j++){
+        out_index[dim] = j;
+        cur = Func(cur, in[index_to_position(out_index, in_stride, rank)]);
+    }
+
+    out_index[dim] = temp;
+    out[index_to_position(out_index, out_stride, rank)] = cur;
 }
 
 template<float (*Func)(float)>
@@ -231,14 +245,55 @@ void zip_lt(const View& out, const View& a, const View& b) { zip_op<lt>(out, a, 
 void zip_eq(const View& out, const View& a, const View& b) { zip_op<eq>(out, a, b); }
 void zip_is_close(const View& out, const View& a, const View& b) { zip_op<is_close>(out, a, b); }
 
-void reduce_max(const View& out, const View& in, int32_t dim) { (void)out; (void)in; (void)dim; }
-void reduce_sum(const View& out, const View& in, int32_t dim) {
-    // reduce_sum_kernel<<<grid, block, 0, stream>>>(...);
-    // Context::get().synchronize();
-    (void)out;
-    (void)in;
-    (void)dim;
+template<float (*Func)(float, float)>
+void reduce_op(const View& out, const View& in, int32_t dim, float base){
+    if (dim < 0 || dim >= in.rank)
+        throw std::runtime_error("reduce_op received dim outside the boundaries of in.shape");
+
+    if (out.rank > 16 || in.rank > 16)
+        throw std::runtime_error(std::format("CUDA reduce_op received exceptionally large shape: {}", std::max(out.rank, in.rank)));
+    
+    Context& ctx = Context::get();
+    long long outsize = prod(out.shape, out.rank);
+    if (outsize == 0) return;
+
+    long long insize = prod(in.shape, in.rank);
+
+    float *outdata, *indata;
+    int32_t *outshape, *outstride, *inshape, *instride;
+    size_t outfbytes = outsize * sizeof(float), infbytes = insize * sizeof(float); 
+    
+    size_t outotherbytes = out.rank * sizeof(int32_t);
+    size_t inotherbytes = in.rank * sizeof(int32_t);
+
+    int32_t threads = 256;
+    int32_t blocks = (outsize + threads - 1) / threads;
+
+    cudaMalloc(&outdata, outfbytes);
+    cudaMalloc(&indata, infbytes);
+    
+    cudaMemcpy(outdata, out.data, outfbytes, cudaMemcpyHostToDevice);
+    cudaMemcpy(indata, in.data, infbytes, cudaMemcpyHostToDevice);
+
+    cudaMalloc(&outshape, outotherbytes);
+    cudaMalloc(&outstride, outotherbytes);
+    cudaMalloc(&inshape, inotherbytes);
+    cudaMalloc(&instride, inotherbytes);
+
+    cudaMemcpy(outshape, out.shape, outotherbytes, cudaMemcpyHostToDevice);
+    cudaMemcpy(outstride, out.stride, outotherbytes, cudaMemcpyHostToDevice);
+    cudaMemcpy(inshape, in.shape, inotherbytes, cudaMemcpyHostToDevice);
+    cudaMemcpy(instride, in.stride, inotherbytes, cudaMemcpyHostToDevice);
+
+    reduce_kernel<Func><<<blocks, threads, 0, static_cast<cudaStream_t>(ctx.getStream())>>>(outdata, outshape, outstride, indata, inshape, instride, in.rank, dim, base, outsize);
+        
+    ctx.synchronize();
+    cudaMemcpy(out.data, outdata, outfbytes, cudaMemcpyDeviceToHost);
+    cudaFree(outdata); cudaFree(outshape); cudaFree(outstride); cudaFree(indata); cudaFree(inshape); cudaFree(instride);
 }
-void reduce_prod(const View& out, const View& in, int32_t dim) { (void)out; (void)in; (void)dim; }
+
+void reduce_max(const View& out, const View& in, int32_t dim) { reduce_op<max>(out, in, dim, -std::numeric_limits<float>::infinity()); }
+void reduce_sum(const View& out, const View& in, int32_t dim) { reduce_op<add>(out, in, dim, 0); }
+void reduce_prod(const View& out, const View& in, int32_t dim) { reduce_op<mul>(out, in, dim, 1); }
 
 } // namespace tsgrad::cuda
