@@ -77,7 +77,7 @@ __host__ __device__ inline bool is_broadcastable(const int32_t* big, const int32
     return true;
 }
 
-__host__ __device__ bool shapes_can_be_mul(const int32_t* a_shape, const int32_t* b_shape, int32_t a_rank, int32_t b_rank){
+__host__ __device__ inline bool shapes_can_be_mul(const int32_t* a_shape, const int32_t* b_shape, int32_t a_rank, int32_t b_rank){
     if (a_rank != b_rank || a_rank < 2) return false;
     for (int32_t i = 0; i < a_rank - 2; i++)
         if (a_shape[i] != b_shape[i]) return false;
