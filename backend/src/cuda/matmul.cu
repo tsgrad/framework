@@ -23,8 +23,8 @@ __global__ void matmul_kernel(float* out, int32_t out_stride_m, int32_t out_stri
     const float* a, int32_t a_stride_m, int32_t a_stride_k,
     const float* b, int32_t b_stride_k, int32_t b_stride_n,
     int32_t M, int32_t N, int32_t K) {
-    int32_t row = blockIdx.y * blockDim.y + threadIdx.y;
     int32_t column = blockIdx.x * blockDim.x + threadIdx.x;
+    int32_t row = blockIdx.y * blockDim.y + threadIdx.y;
     if (row >= M || column >= N) return;
 
     int32_t a_pos = row * a_stride_m;
