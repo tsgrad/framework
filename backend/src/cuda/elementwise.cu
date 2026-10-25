@@ -120,12 +120,12 @@ void map_op(const View& out, const View& in){
 
 void map_neg(const View& out, const View& in){ map_op<neg>(out, in); }
 
-void map_inv(const View& out, const View& in) { (void)out; (void)in; }
-void map_sigmoid(const View& out, const View& in) { (void)out; (void)in; }
-void map_relu(const View& out, const View& in) { (void)out; (void)in; }
-void map_log(const View& out, const View& in) { (void)out; (void)in; }
-void map_exp(const View& out, const View& in) { (void)out; (void)in; }
-void map_id(const View& out, const View& in) { (void)out; (void)in; }
+void map_inv(const View& out, const View& in) { map_op<inv>(out, in); }
+void map_sigmoid(const View& out, const View& in) { map_op<sigmoid>(out, in); }
+void map_relu(const View& out, const View& in) { map_op<relu>(out, in); }
+void map_log(const View& out, const View& in) { map_op<log>(out, in); }
+void map_exp(const View& out, const View& in) { map_op<exp>(out, in); }
+void map_id(const View& out, const View& in) { map_op<id>(out, in); }
 
 void zip_add(const View& out, const View& a, const View& b) {
     // Context& ctx = Context::get();
