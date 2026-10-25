@@ -4,6 +4,10 @@
 #   cmake -S backend -B backend/build
 #   cmake --build backend/build --config Release
 #
+# To build without cuda
+#   cmake -S backend -B backend/build -DTSGRAD_CUDA=OFF
+#   cmake --build backend/build --config Release
+#
 # TSGRAD_CUDA=ON (the default) compiles src/cuda/*.cu when nvcc is installed.
 # Those files define tsgrad::cuda::*. The CPU files define tsgrad::*.
 # addon.cc calls the CPU entry points. A CPU function may call the matching
@@ -14,6 +18,9 @@ project(tsgrad_native LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+set(CMAKE_CUDA_STANDARD 23)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 option(TSGRAD_CUDA "Compile the CUDA launchers in src/cuda" ON)
 
@@ -104,8 +111,6 @@ if(TSGRAD_CUDA)
     check_language(CUDA)
     if(CMAKE_CUDA_COMPILER)
         enable_language(CUDA)
-        set(CMAKE_CUDA_STANDARD 23)
-        set(CMAKE_CUDA_STANDARD_REQUIRED ON)
         find_package(CUDAToolkit REQUIRED)
         target_sources(tsgrad_native PRIVATE
             src/cuda/context.cu
@@ -113,6 +118,7 @@ if(TSGRAD_CUDA)
             src/cuda/matmul.cu
             src/cuda/conv.cu
         )
+        set_target_properties(tsgrad_native PROPERTIES CUDA_ARCHITECTURES native)
         target_link_libraries(tsgrad_native PRIVATE CUDA::cudart)
         target_compile_definitions(tsgrad_native PRIVATE TSGRAD_HAS_CUDA)
     else()
@@ -123,5 +129,5 @@ endif()
 if(MSVC)
     set(OpenMP_RUNTIME_MSVC "llvm")
 endif()
-find_package(OpenMP REQUIRED)
+find_package(OpenMP REQUIRED COMPONENTS CXX)
 target_link_libraries(tsgrad_native PRIVATE OpenMP::OpenMP_CXX)
