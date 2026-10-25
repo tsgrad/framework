@@ -55,32 +55,62 @@ void map_neg(const View& out, const View& in) {
 }
 
 void map_inv(const View& out, const View& in) {
-    map_op([](float a) -> float { return 1.0F / a; }, out, in);
+    if constexpr (TSGRAD_HAS_CUDA){
+        cuda::map_inv(out, in);
+    }
+    else{
+        map_op([](float a) -> float { return 1.0F / a; }, out, in);
+    }
 }
 
 void map_sigmoid(const View& out, const View& in) {
-    map_op([](float a) -> float {
-        if (a >= 0)
-            return 1.0F/(1.0F + std::exp(-a));  // e^a
-        else
-            return std::exp(a) / (1.0F + std::exp(a));
-    }, out, in);
+    if constexpr (TSGRAD_HAS_CUDA){
+        cuda::map_sigmoid(out, in);
+    }
+    else{
+        map_op([](float a) -> float {
+            if (a >= 0)
+                return 1.0F/(1.0F + std::exp(-a));  // e^a
+            else
+                return std::exp(a) / (1.0F + std::exp(a));
+        }, out, in);
+    }
 }
 
 void map_relu(const View& out, const View& in) {
-    map_op([](float a) -> float { return std::max(0.0F, a); }, out, in);
+    if constexpr (TSGRAD_HAS_CUDA){
+        cuda::map_relu(out, in);
+    }
+    else{
+        map_op([](float a) -> float { return std::max(0.0F, a); }, out, in);
+    }
 }
 
 void map_log(const View& out, const View& in) {
-    map_op([](float a) -> float { return std::log(a); }, out, in);
+    if constexpr (TSGRAD_HAS_CUDA){
+        cuda::map_log(out, in);
+    }
+    else{
+        map_op([](float a) -> float { return std::log(a); }, out, in);
+    }
 }
 
 void map_exp(const View& out, const View& in) {
-    map_op([](float a) -> float { return std::exp(a); }, out, in);
+    if constexpr (TSGRAD_HAS_CUDA){
+        cuda::map_exp(out, in);
+    }
+    else{
+        map_op([](float a) -> float { return std::exp(a); }, out, in);
+    }
 }
 
 void map_id(const View& out, const View& in) {
-    map_op([](float a) -> float { return a; }, out, in);
+    if constexpr (TSGRAD_HAS_CUDA){
+        cuda::map_id(out, in);
+    }
+    else{
+        map_op([](float a) -> float { return a; }, out, in);
+    }
 }
 
 template <typename Func>
@@ -121,23 +151,48 @@ void zip_op(Func operation, const View& out, const View& a, const View& b){
 }
 
 void zip_add(const View& out, const View& a, const View& b) {
-    zip_op([](float x, float y) -> float { return x + y; }, out, a, b);
+    if constexpr (TSGRAD_HAS_CUDA){
+        cuda::zip_add(out, a, b);
+    }
+    else{
+        zip_op([](float x, float y) -> float { return x + y; }, out, a, b);
+    }
 }
 
 void zip_mul(const View& out, const View& a, const View& b) {
-    zip_op([](float x, float y) -> float { return x * y; }, out, a, b);
+    if constexpr (TSGRAD_HAS_CUDA){
+        cuda::zip_mul(out, a, b);
+    }
+    else{
+        zip_op([](float x, float y) -> float { return x * y; }, out, a, b);
+    }
 }
 
 void zip_lt(const View& out, const View& a, const View& b) {
-    zip_op([](float x, float y) -> float { return x < y; }, out, a, b);
+    if constexpr (TSGRAD_HAS_CUDA){
+        cuda::zip_lt(out, a, b);
+    }
+    else{
+        zip_op([](float x, float y) -> float { return x < y; }, out, a, b);
+    }
 }
 
 void zip_eq(const View& out, const View& a, const View& b) {
-    zip_op([](float x, float y) -> float { return x == y; }, out, a, b);
+    if constexpr (TSGRAD_HAS_CUDA){
+        cuda::zip_eq(out, a, b);
+    }
+    else{
+        zip_op([](float x, float y) -> float { return x == y; }, out, a, b);
+    }
 }
 
 void zip_is_close(const View& out, const View& a, const View& b) {
-    zip_op([](float x, float y) -> float { return std::abs(x - y) < 0.01; }, out, a, b);
+    if constexpr (TSGRAD_HAS_CUDA){
+        cuda::zip_is_close(out, a, b);
+    }
+    else{
+        zip_op([](float x, float y) -> float { return std::abs(x - y) < 0.01; }, out, a, b);
+    }
 }
 
 } // namespace tsgrad

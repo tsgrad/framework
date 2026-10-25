@@ -45,15 +45,30 @@ void reduce_ops(Func&& operation, const View& out, const View& in, int32_t dim, 
 }
 
 void reduce_max(const View& out, const View& in, int32_t dim) {
-    reduce_ops([](float x, float y) -> float { return x > y ? x : y; }, out, in, dim, -std::numeric_limits<float>::infinity());
+    if constexpr (TSGRAD_HAS_CUDA){
+        cuda::reduce_max(out, in, dim);
+    }
+    else{
+        reduce_ops([](float x, float y) -> float { return x > y ? x : y; }, out, in, dim, -std::numeric_limits<float>::infinity());
+    }
 }
 
 void reduce_sum(const View& out, const View& in, int32_t dim) {
-    reduce_ops([](float x, float y) -> float { return x + y; }, out, in, dim, 0.0F);
+    if constexpr (TSGRAD_HAS_CUDA){
+        cuda::reduce_sum(out, in, dim);
+    }
+    else{
+        reduce_ops([](float x, float y) -> float { return x + y; }, out, in, dim, 0.0F);
+    }
 }
 
 void reduce_prod(const View& out, const View& in, int32_t dim) {
-    reduce_ops([](float x, float y) -> float { return x * y; }, out, in, dim, 1.0F);
+    if constexpr (TSGRAD_HAS_CUDA){
+        cuda::reduce_prod(out, in, dim);
+    }
+    else{
+        reduce_ops([](float x, float y) -> float { return x * y; }, out, in, dim, 1.0F);
+    }
 }
 
 } // namespace tsgrad
