@@ -46,7 +46,12 @@ void map_op(Func operation, const View& out, const View& in){
 }
 
 void map_neg(const View& out, const View& in) {
-    map_op([](float a) -> float { return -a; }, out, in);
+    if constexpr (TSGRAD_HAS_CUDA){
+        cuda::map_neg(out, in); // tsgrad::cuda::
+    }
+    else{
+        map_op([](float a) -> float { return -a; }, out, in);
+    }
 }
 
 void map_inv(const View& out, const View& in) {
