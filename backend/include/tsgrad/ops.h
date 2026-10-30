@@ -8,9 +8,9 @@
 
 // Host-side view of one tensor argument.
 //
-// data, shape, and stride are borrowed. addon.cc owns the shape and stride
-// buffers for the duration of the call, and data points into a JavaScript
-// Float32Array. Do not keep these pointers after the function returns.
+// data is Storage::data(): a host vector on a CPU build, a device pointer on
+// a CUDA build. Do not free it. shape and stride are borrowed for this call.
+// Do not keep these pointers after the function returns.
 //
 // out is written. Every other View is read. Shape and stride follow the same
 // rules as indexToPosition / broadcastIndex in src/tensor_data.ts.
@@ -59,8 +59,8 @@ void conv1d(const View& out, const View& input, const View& weight, bool reverse
 void conv2d(const View& out, const View& input, const View& weight, bool reverse);
 
 // Same signatures as above. Defined in src/cuda/*.cu when TSGRAD_HAS_CUDA is set.
-// The pointers in these Views are still host pointers. The .cu function copies
-// to the device, launches, and copies back before it returns.
+// On a CUDA build View::data is already a device pointer. The .cu function
+// launches and synchronizes before it returns. It does not free data.
 namespace cuda {
 
 class Context {

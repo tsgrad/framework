@@ -53,6 +53,7 @@ set(NODE_API_DEF "${NODE_API_HEADERS_PARENT}/def/node_api.def")
 
 add_library(tsgrad_native SHARED
     src/addon.cc
+    src/storage.cpp
     src/cpu/elementwise.cpp
     src/cpu/reduce.cpp
     src/cpu/matmul.cpp
