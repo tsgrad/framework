@@ -1,7 +1,11 @@
 import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import type { Shape, Storage, Stride } from './tensor_data.js';
+import type { Shape, Stride } from './tensor_data.js';
+
+export interface NativeStorage {
+    readonly __nativeStorage: unique symbol;
+}
 
 const require = createRequire(import.meta.url);
 
@@ -9,26 +13,26 @@ const require = createRequire(import.meta.url);
 const addonPath = fileURLToPath(new URL('../backend/build/Release/tsgrad_native.node', import.meta.url));
 
 export type MapNative = (
-    out: Storage, outShape: Shape, outStride: Stride,
-    input: Storage, inShape: Shape, inStride: Stride,
+    out: NativeStorage, outShape: Shape, outStride: Stride,
+    input: NativeStorage, inShape: Shape, inStride: Stride,
 ) => void;
 
 export type ZipNative = (
-    out: Storage, outShape: Shape, outStride: Stride,
-    a: Storage, aShape: Shape, aStride: Stride,
-    b: Storage, bShape: Shape, bStride: Stride,
+    out: NativeStorage, outShape: Shape, outStride: Stride,
+    a: NativeStorage, aShape: Shape, aStride: Stride,
+    b: NativeStorage, bShape: Shape, bStride: Stride,
 ) => void;
 
 export type ReduceNative = (
-    out: Storage, outShape: Shape, outStride: Stride,
-    input: Storage, inShape: Shape, inStride: Stride,
+    out: NativeStorage, outShape: Shape, outStride: Stride,
+    input: NativeStorage, inShape: Shape, inStride: Stride,
     dim: number,
 ) => void;
 
 export type ConvNative = (
-    out: Storage, outShape: Shape, outStride: Stride,
-    input: Storage, inShape: Shape, inStride: Stride,
-    weight: Storage, weightShape: Shape, weightStride: Stride,
+    out: NativeStorage, outShape: Shape, outStride: Stride,
+    input: NativeStorage, inShape: Shape, inStride: Stride,
+    weight: NativeStorage, weightShape: Shape, weightStride: Stride,
     reverse: boolean,
 ) => void;
 
@@ -52,6 +56,9 @@ export type NativeAddon = {
     matmul: ZipNative;
     conv1d: ConvNative;
     conv2d: ConvNative;
+    alloc: (numel: number, fill?: number) => NativeStorage;
+    copyToHost: (storage: NativeStorage) => Float32Array;
+    copyFromHost: (storage: NativeStorage, values: Float32Array) => void;
 };
 
 // Missing .node means every caller stays on the TypeScript loops.

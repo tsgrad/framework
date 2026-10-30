@@ -1,23 +1,24 @@
 import { randomFloat } from "../src/helperfunctions.js"
 import { Module, Parameter } from "../src/module.js"
 import { Tensor } from "../src/tensor.js";
-import { Shape, TensorData } from "../src/tensor_data.js"
+import { readStorage, Shape, TensorData, writeStorage } from "../src/tensor_data.js"
 import * as operators from "../src/operators.js"
 import { Graph } from "../src/datasets.js";
 import { Optimizer, SGD, SGDMomentum } from "../src/optim.js";
 
 function sharedTensorData(values: ArrayLike<number>, shape: Shape): TensorData {
     const data = TensorData.fill(shape);
-    data._storage.set(values);
+    writeStorage(data._storage, values);
     return data;
 }
 
 function RParam(...shape: Shape): Tensor{
     // Random tensor where each cell is -1 to 1 with shape as the shape
     const data = TensorData.fill(shape);
-    for (let i = 0; i < data._storage.length; i++) {
-        data._storage[i] = randomFloat(-1, 1);
-    }
+    const values = new Float32Array(data.size);
+    for (let i = 0; i < values.length; i++)
+        values[i] = randomFloat(-1, 1);
+    writeStorage(data._storage, values);
     const tensor = new Tensor(data);
     tensor._requiresGrad(true);
     return tensor;
@@ -147,13 +148,13 @@ export class TensorTrain{
             // backpropagate
             (loss.div(data.n)).sum(0).view(1).backward();
             
-            totalLoss = loss.sum(0).view(1).data._storage[0];
+            totalLoss = readStorage(loss.sum(0).view(1).data._storage)[0];
             losses.push(totalLoss);
 
             this.optim.step();
 
             if (epoch % 10 === 0 || epoch == maxEpochs){
-                let correct: number = (out.detach().gt(0.5).eq(y)).sum(0).data._storage[0];
+                let correct: number = readStorage((out.detach().gt(0.5).eq(y)).sum(0).data._storage)[0];
                 logFn(epoch, totalLoss, correct, losses);
             }
         }

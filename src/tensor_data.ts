@@ -1,10 +1,12 @@
 import { zipWith, sum, mul, max, prod } from "./operators.js";
+import { native, type NativeStorage } from "./native.js";
 
 export type OutIndex = number[];
 export type Shape = number[];
 export type Stride = number[];
 export type Index = number[];
 export type Storage = Float32Array;
+export type TensorBuffer = Float32Array | NativeStorage;
 
 export type UserShape = number[];
 export type UserStrides = number[];
@@ -58,8 +60,25 @@ export function shapeBroadcast(shape1: UserShape, shape2: UserShape): UserShape{
     return res;
 }
 
+export function readStorage(storage: TensorBuffer): Float32Array {
+    if (storage instanceof Float32Array) return storage;
+    if (!native) throw "native storage requires the addon";
+    return native.copyToHost(storage);
+}
+
+export function writeStorage(storage: TensorBuffer, values: ArrayLike<number>): void {
+    const src = values instanceof Float32Array ? values : Float32Array.from(values);
+    if (storage instanceof Float32Array) {
+        if (src.length !== storage.length) throw "writeStorage length does not match storage";
+        storage.set(src);
+        return;
+    }
+    if (!native) throw "native storage requires the addon";
+    native.copyFromHost(storage, src);
+}
+
 export class TensorData{
-    _storage: Storage;
+    _storage: TensorBuffer;
     _shape: Shape;
     _stride: Stride;
     strides: UserStrides;
@@ -67,8 +86,7 @@ export class TensorData{
     dims: number;
     size: number;
 
-    constructor(storage: Storage, shape: Shape, strides: Stride = TensorData.calculateStrides(shape)){
-        this._storage = storage;
+    constructor(storage: TensorBuffer, shape: Shape, strides: Stride = TensorData.calculateStrides(shape)){
         this._shape = shape;
         this._stride = strides;
 
@@ -76,12 +94,28 @@ export class TensorData{
         this.dims = strides.length;
         this.size = prod(shape);
         this.shape = shape;
-        if (this._storage.length != this.size)
-            throw "_storage.length not equal to this.size";
+
+        if (native) {
+            if (storage instanceof Float32Array) {
+                if (storage.length !== this.size) throw "_storage.length not equal to this.size";
+                const handle = native.alloc(this.size, 0);
+                if (this.size > 0) native.copyFromHost(handle, storage);
+                this._storage = handle;
+            } else {
+                this._storage = storage;
+            }
+        } else {
+            if (!(storage instanceof Float32Array)) throw "native storage requires the addon";
+            if (storage.length !== this.size) throw "_storage.length not equal to this.size";
+            this._storage = storage;
+        }
     }
 
     static fill(shape: Shape, num: number = 0): TensorData{
         let size = prod(shape);
+        if (native) {
+            return new TensorData(native.alloc(size, num), shape, TensorData.calculateStrides(shape));
+        }
         const storage = new Float32Array(new SharedArrayBuffer(size * Float32Array.BYTES_PER_ELEMENT));
         storage.fill(num);
         return new TensorData(storage, shape, TensorData.calculateStrides(shape));

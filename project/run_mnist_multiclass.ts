@@ -1,7 +1,7 @@
 import { randomFloat } from "../src/helperfunctions.js"
 import { Module, Parameter } from "../src/module.js"
 import { Tensor } from "../src/tensor.js";
-import { Shape, TensorData } from "../src/tensor_data.js"
+import { readStorage, Shape, TensorData, writeStorage } from "../src/tensor_data.js"
 import * as operators from "../src/operators.js"
 import { Graph } from "../src/datasets.js";
 import { Optimizer, SGD, SGDMomentum } from "../src/optim.js";
@@ -18,16 +18,17 @@ const H = 28, W = 28;
 
 function sharedTensorData(values: ArrayLike<number>, shape: Shape): TensorData {
     const data = TensorData.fill(shape);
-    data._storage.set(values);
+    writeStorage(data._storage, values);
     return data;
 }
 
 function RParam(...shape: Shape): Tensor{
     // Random tensor where each cell is -0.05 to 0.05 with shape as the shape
     const data = TensorData.fill(shape);
-    for (let i = 0; i < data._storage.length; i++) {
-        data._storage[i] = randomFloat(-0.05, 0.05);
-    }
+    const values = new Float32Array(data.size);
+    for (let i = 0; i < values.length; i++)
+        values[i] = randomFloat(-0.05, 0.05);
+    writeStorage(data._storage, values);
     const tensor = new Tensor(data);
     tensor._requiresGrad(true);
     return tensor;
@@ -36,10 +37,11 @@ function RParam(...shape: Shape): Tensor{
 function HeParam(fanIn: number, ...shape: Shape): Tensor {
     const bound = Math.sqrt(6 / fanIn);
     const data = TensorData.fill(shape);
+    const values = new Float32Array(data.size);
 
-    for (let i = 0; i < data._storage.length; i++) {
-        data._storage[i] = randomFloat(-bound, bound);
-    }
+    for (let i = 0; i < values.length; i++)
+        values[i] = randomFloat(-bound, bound);
+    writeStorage(data._storage, values);
 
     const tensor = new Tensor(data);
     tensor._requiresGrad(true);
@@ -233,10 +235,11 @@ export class ImageTrain{
             const batchSize = imageBatch.length;
             const output = this.model.forward(this.imagesToTensor(imageBatch)).detach();
 
+            const scores = readStorage(output.data._storage);
             for (let i = 0; i < batchSize; i++) {
                 let predicted = 0;
                 for (let j = 1; j < C; j++) {
-                    if (output.data._storage[i * C + j] > output.data._storage[i * C + predicted]){
+                    if (scores[i * C + j] > scores[i * C + predicted]){
                         predicted = j;
                     }
                 }
@@ -294,10 +297,6 @@ export class ImageTrain{
         console.log(`Time to train took ${endtime - starttime}`);
     }
 }
-
-
-
-
 
 // Actual testing down here
 import { fileURLToPath } from "node:url";

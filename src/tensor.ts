@@ -1,5 +1,5 @@
 import { backpropagate, Context, Variable } from "./autodiff.js";
-import { TensorData, UserShape, Shape } from "./tensor_data.js";
+import { readStorage, TensorData, UserShape, Shape } from "./tensor_data.js";
 import { Add, TensorFunction, Neg, Mul, Inv, LT, EQ, IsClose, Sigmoid, ReLU, Log, Exp, Sum, Permute, ToContiguous, View, MatMul, Conv1d, Conv2d, Max } from "./tensor_functions.js";
 
 export class History{
@@ -65,7 +65,7 @@ export class Tensor implements Variable{
         if (this.data.size !== 1)
             throw "item() called on tensor of size " + this.data.size;
 
-        return this.data._storage[0];
+        return readStorage(this.data._storage)[0];
     }
 
     _ensureTensor(x: Tensor | number){

@@ -1,5 +1,5 @@
 import { Tensor } from "./tensor.js";
-import { Shape, shapeBroadcast, TensorData } from "./tensor_data.js";
+import { Shape, shapeBroadcast, TensorData, writeStorage } from "./tensor_data.js";
 import { Context } from "./autodiff.js";
 import * as operators from "./operators.js";
 // swap out if wanted, tensor_ops has non-multithreaded, the fastTensor stuff is multithreaded
@@ -238,9 +238,10 @@ export function maxpool2d(input: Tensor, kernel: [number, number]): Tensor{
 export function rparam(shape: Shape, lowerBound: number = -1, upperBound: number = 1): Tensor{
     // Random tensor where each cell is -1 to 1 with shape as the shape
     const data = TensorData.fill(shape);
-    for (let i = 0; i < data._storage.length; i++) {
-        data._storage[i] = randomFloat(lowerBound, upperBound);
-    }
+    const values = new Float32Array(data.size);
+    for (let i = 0; i < values.length; i++)
+        values[i] = randomFloat(lowerBound, upperBound);
+    writeStorage(data._storage, values);
     const tensor = new Tensor(data);
     return tensor;
 }

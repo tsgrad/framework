@@ -3,6 +3,7 @@ import { Queue } from "./datastructures.js";
 import { Parameter } from "./module.js";
 import { Scalar } from "./scalar.js";
 import { Tensor } from "./tensor.js";
+import { readStorage, writeStorage } from "./tensor_data.js";
 
 export abstract class Optimizer{
     parameters: Parameter[];
@@ -43,8 +44,11 @@ export class SGD extends Optimizer{
             }
             else if (p.value instanceof Tensor) {
                 if (p.value.grad !== undefined) {
-                    for (let i = 0; i < p.value.data._storage.length; i++)
-                        p.value.data._storage[i] -= this.lr * p.value.grad.data._storage[i];
+                    const values = readStorage(p.value.data._storage);
+                    const grads = readStorage(p.value.grad.data._storage);
+                    for (let i = 0; i < values.length; i++)
+                        values[i] -= this.lr * grads[i];
+                    writeStorage(p.value.data._storage, values);
                 }
             }
         }
@@ -93,17 +97,20 @@ export class SGDMomentum extends Optimizer{
             }
             else if (p.value instanceof Tensor) {
                 if (p.value.grad !== undefined) {
+                    const values = readStorage(p.value.data._storage);
+                    const grads = readStorage(p.value.grad.data._storage);
                     let oldVelocity = this.prev.get(p);
 
-                    if (oldVelocity === undefined) 
-                        oldVelocity = Array(p.value.data._storage.length).fill(0);
+                    if (oldVelocity === undefined)
+                        oldVelocity = Array(values.length).fill(0);
 
-                    for (let i = 0; i < p.value.data._storage.length; i++){
-                        const velocity = this.beta * oldVelocity[i] + (1 - this.beta) * p.value.grad.data._storage[i];
-                        p.value.data._storage[i] -= this.lr * velocity;
+                    for (let i = 0; i < values.length; i++){
+                        const velocity = this.beta * oldVelocity[i] + (1 - this.beta) * grads[i];
+                        values[i] -= this.lr * velocity;
                         oldVelocity[i] = velocity;
                     }
-                    
+
+                    writeStorage(p.value.data._storage, values);
                     this.prev.set(p, oldVelocity);
                 }
             }
