@@ -11,13 +11,10 @@
 //
 // Each host function below is the same sequence:
 //   1. Context::get()            current device and stream
-//   2. cudaMalloc + cudaMemcpy   host Float32Array -> device
-//   3. kernel<<<grid, block, 0, stream>>>
-//   4. cudaMemcpy                device -> the output Float32Array
-//   5. Context::synchronize()    JS reads `out` as soon as this returns
+//   2. kernel<<<grid, block, 0, stream>>> on View::data, already device memory
+//   3. Context::synchronize()    the next copyToHost sees the result
 //
-// Shape and stride arrays are tiny. Copy them to the device with the floats,
-// or pass them in constant memory once you care about that.
+// Shape and stride arrays are tiny and still copied per call. Do not free View::data.
 
 namespace tsgrad::cuda {
     
@@ -105,6 +102,14 @@ __global__ void reduce_kernel(float* out, const int32_t* out_shape, const int32_
     out[index_to_position(out_index, out_stride, rank)] = cur;
 }
 
+int32_t* upload_i32(const int32_t* src, size_t bytes) {
+    if (bytes == 0) return nullptr;
+    int32_t* dst = nullptr;
+    cudaMalloc(&dst, bytes);
+    cudaMemcpy(dst, src, bytes, cudaMemcpyHostToDevice);
+    return dst;
+}
+
 template<float (*Func)(float)>
 void map_op(const View& out, const View& in){
     if (out.rank > 16 || in.rank > 16)
@@ -114,49 +119,26 @@ void map_op(const View& out, const View& in){
     long long outsize = prod(out.shape, out.rank);
     if (outsize == 0) return;
 
-    long long insize = prod(in.shape, in.rank);
-
-    float *outdata, *indata;
-    int32_t *outshape, *outstride, *inshape, *instride;
-    size_t outfbytes = outsize * sizeof(float), infbytes = insize * sizeof(float); 
-    
-    size_t outotherbytes = out.rank * sizeof(int32_t);
-    size_t inotherbytes = in.rank * sizeof(int32_t);
-
     int32_t threads = 256;
-    int32_t blocks = (outsize + threads - 1) / threads;
+    int32_t blocks = static_cast<int32_t>((outsize + threads - 1) / threads);
 
-    cudaMalloc(&outdata, outfbytes);
-    cudaMalloc(&indata, infbytes);
-    
-    cudaMemcpy(outdata, out.data, outfbytes, cudaMemcpyHostToDevice);
-    cudaMemcpy(indata, in.data, infbytes, cudaMemcpyHostToDevice);
-
-    // shortcut if everything is the right shape and size
     if (is_contiguous(out) && is_contiguous(in) && shapesAreEqual(out.shape, in.shape, out.rank, in.rank)){
-        map_kernel_contiguous<Func><<<blocks, threads, 0, static_cast<cudaStream_t>(ctx.getStream())>>>(outdata, indata, outsize);
-        
+        map_kernel_contiguous<Func><<<blocks, threads, 0, static_cast<cudaStream_t>(ctx.getStream())>>>(out.data, in.data, outsize);
         ctx.synchronize();
-        cudaMemcpy(out.data, outdata, outfbytes, cudaMemcpyDeviceToHost);
-        cudaFree(outdata); cudaFree(indata);
+        return;
     }
-    else{
-        cudaMalloc(&outshape, outotherbytes);
-        cudaMalloc(&outstride, outotherbytes);
-        cudaMalloc(&inshape, inotherbytes);
-        cudaMalloc(&instride, inotherbytes);
 
-        cudaMemcpy(outshape, out.shape, outotherbytes, cudaMemcpyHostToDevice);
-        cudaMemcpy(outstride, out.stride, outotherbytes, cudaMemcpyHostToDevice);
-        cudaMemcpy(inshape, in.shape, inotherbytes, cudaMemcpyHostToDevice);
-        cudaMemcpy(instride, in.stride, inotherbytes, cudaMemcpyHostToDevice);
+    const size_t outotherbytes = static_cast<size_t>(out.rank) * sizeof(int32_t);
+    const size_t inotherbytes = static_cast<size_t>(in.rank) * sizeof(int32_t);
+    int32_t* outshape = upload_i32(out.shape, outotherbytes);
+    int32_t* outstride = upload_i32(out.stride, outotherbytes);
+    int32_t* inshape = upload_i32(in.shape, inotherbytes);
+    int32_t* instride = upload_i32(in.stride, inotherbytes);
 
-        map_kernel<Func><<<blocks, threads, 0, static_cast<cudaStream_t>(ctx.getStream())>>>(outdata, outshape, outstride, out.rank, indata, inshape, instride, in.rank, outsize);
-        
-        ctx.synchronize();
-        cudaMemcpy(out.data, outdata, outfbytes, cudaMemcpyDeviceToHost);
-        cudaFree(outdata); cudaFree(outshape); cudaFree(outstride); cudaFree(indata); cudaFree(inshape); cudaFree(instride);
-    }
+    map_kernel<Func><<<blocks, threads, 0, static_cast<cudaStream_t>(ctx.getStream())>>>(out.data, outshape, outstride, out.rank, in.data, inshape, instride, in.rank, outsize);
+
+    ctx.synchronize();
+    cudaFree(outshape); cudaFree(outstride); cudaFree(inshape); cudaFree(instride);
 }
 
 void map_neg(const View& out, const View& in){ map_op<neg>(out, in); }
@@ -177,65 +159,36 @@ void zip_op(const View& out, const View& a, const View& b){
     long long outsize = prod(out.shape, out.rank);
     if (outsize == 0) return;
 
-    long long asize = prod(a.shape, a.rank);
-    long long bsize = prod(b.shape, b.rank);
-
-    float *outdata, *adata, *bdata;
-    int32_t *outshape, *outstride, *ashape, *astride, *bshape, *bstride;
-    size_t outfbytes = outsize * sizeof(float), afbytes = asize * sizeof(float), bfbytes = bsize * sizeof(float); 
-    
-    size_t outotherbytes = out.rank * sizeof(int32_t);
-    size_t aotherbytes = a.rank * sizeof(int32_t);
-    size_t botherbytes = b.rank * sizeof(int32_t);
-    
     int32_t threads = 256;
-    int32_t blocks = (outsize + threads - 1) / threads;
+    int32_t blocks = static_cast<int32_t>((outsize + threads - 1) / threads);
 
-    cudaMalloc(&outdata, outfbytes);
-    cudaMalloc(&adata, afbytes);
-    cudaMalloc(&bdata, bfbytes);
-    
-    cudaMemcpy(outdata, out.data, outfbytes, cudaMemcpyHostToDevice);
-    cudaMemcpy(adata, a.data, afbytes, cudaMemcpyHostToDevice);
-    cudaMemcpy(bdata, b.data, bfbytes, cudaMemcpyHostToDevice);
-
-    // shortcut if everything is the right shape and size
     if (is_contiguous(out) && is_contiguous(a) && is_contiguous(b) && shapesAreEqual(out.shape, a.shape, out.rank, a.rank) && shapesAreEqual(out.shape, b.shape, out.rank, b.rank)){
-        zip_kernel_contiguous<Func><<<blocks, threads, 0, static_cast<cudaStream_t>(ctx.getStream())>>>(outdata, adata, bdata, outsize);
+        zip_kernel_contiguous<Func><<<blocks, threads, 0, static_cast<cudaStream_t>(ctx.getStream())>>>(out.data, a.data, b.data, outsize);
         ctx.synchronize();
-        cudaMemcpy(out.data, outdata, outfbytes, cudaMemcpyDeviceToHost);
-        cudaFree(outdata); cudaFree(adata); cudaFree(bdata);
+        return;
     }
-    else{
-        if (!is_broadcastable(out.shape, a.shape, out.rank, a.rank) || !is_broadcastable(out.shape, b.shape, out.rank, b.rank)){
-            cudaFree(outdata); cudaFree(adata); cudaFree(bdata);
-            throw std::runtime_error("zip_op received unbroadcastable shapes");
-        }
 
-        cudaMalloc(&outshape, outotherbytes);
-        cudaMalloc(&outstride, outotherbytes);
-        cudaMalloc(&ashape, aotherbytes);
-        cudaMalloc(&astride, aotherbytes);
-        cudaMalloc(&bshape, botherbytes);
-        cudaMalloc(&bstride, botherbytes);
+    if (!is_broadcastable(out.shape, a.shape, out.rank, a.rank) || !is_broadcastable(out.shape, b.shape, out.rank, b.rank))
+        throw std::runtime_error("zip_op received unbroadcastable shapes");
 
-        cudaMemcpy(outshape, out.shape, outotherbytes, cudaMemcpyHostToDevice);
-        cudaMemcpy(outstride, out.stride, outotherbytes, cudaMemcpyHostToDevice);
-        cudaMemcpy(ashape, a.shape, aotherbytes, cudaMemcpyHostToDevice);
-        cudaMemcpy(astride, a.stride, aotherbytes, cudaMemcpyHostToDevice);
-        cudaMemcpy(bshape, b.shape, botherbytes, cudaMemcpyHostToDevice);
-        cudaMemcpy(bstride, b.stride, botherbytes, cudaMemcpyHostToDevice);
+    const size_t outotherbytes = static_cast<size_t>(out.rank) * sizeof(int32_t);
+    const size_t aotherbytes = static_cast<size_t>(a.rank) * sizeof(int32_t);
+    const size_t botherbytes = static_cast<size_t>(b.rank) * sizeof(int32_t);
+    int32_t* outshape = upload_i32(out.shape, outotherbytes);
+    int32_t* outstride = upload_i32(out.stride, outotherbytes);
+    int32_t* ashape = upload_i32(a.shape, aotherbytes);
+    int32_t* astride = upload_i32(a.stride, aotherbytes);
+    int32_t* bshape = upload_i32(b.shape, botherbytes);
+    int32_t* bstride = upload_i32(b.stride, botherbytes);
 
-        zip_kernel<Func><<<blocks, threads, 0, static_cast<cudaStream_t>(ctx.getStream())>>>(
-            outdata, outshape, outstride, out.rank, 
-            adata, ashape, astride, a.rank,
-            bdata, bshape, bstride, b.rank, outsize
-        );
+    zip_kernel<Func><<<blocks, threads, 0, static_cast<cudaStream_t>(ctx.getStream())>>>(
+        out.data, outshape, outstride, out.rank,
+        a.data, ashape, astride, a.rank,
+        b.data, bshape, bstride, b.rank, outsize
+    );
 
-        ctx.synchronize();
-        cudaMemcpy(out.data, outdata, outfbytes, cudaMemcpyDeviceToHost);
-        cudaFree(outdata); cudaFree(outshape); cudaFree(outstride); cudaFree(adata); cudaFree(ashape); cudaFree(astride); cudaFree(bdata); cudaFree(bshape); cudaFree(bstride);
-    }
+    ctx.synchronize();
+    cudaFree(outshape); cudaFree(outstride); cudaFree(ashape); cudaFree(astride); cudaFree(bshape); cudaFree(bstride);
 }
 
 void zip_add(const View& out, const View& a, const View& b) { zip_op<add>(out, a, b); }
@@ -257,39 +210,20 @@ void reduce_op(const View& out, const View& in, int32_t dim, float base){
     long long outsize = prod(out.shape, out.rank);
     if (outsize == 0) return;
 
-    long long insize = prod(in.shape, in.rank);
-
-    float *outdata, *indata;
-    int32_t *outshape, *outstride, *inshape, *instride;
-    size_t outfbytes = outsize * sizeof(float), infbytes = insize * sizeof(float); 
-    
-    size_t outotherbytes = out.rank * sizeof(int32_t);
-    size_t inotherbytes = in.rank * sizeof(int32_t);
-
+    const size_t outotherbytes = static_cast<size_t>(out.rank) * sizeof(int32_t);
+    const size_t inotherbytes = static_cast<size_t>(in.rank) * sizeof(int32_t);
     int32_t threads = 256;
-    int32_t blocks = (outsize + threads - 1) / threads;
+    int32_t blocks = static_cast<int32_t>((outsize + threads - 1) / threads);
 
-    cudaMalloc(&outdata, outfbytes);
-    cudaMalloc(&indata, infbytes);
-    
-    cudaMemcpy(outdata, out.data, outfbytes, cudaMemcpyHostToDevice);
-    cudaMemcpy(indata, in.data, infbytes, cudaMemcpyHostToDevice);
+    int32_t* outshape = upload_i32(out.shape, outotherbytes);
+    int32_t* outstride = upload_i32(out.stride, outotherbytes);
+    int32_t* inshape = upload_i32(in.shape, inotherbytes);
+    int32_t* instride = upload_i32(in.stride, inotherbytes);
 
-    cudaMalloc(&outshape, outotherbytes);
-    cudaMalloc(&outstride, outotherbytes);
-    cudaMalloc(&inshape, inotherbytes);
-    cudaMalloc(&instride, inotherbytes);
+    reduce_kernel<Func><<<blocks, threads, 0, static_cast<cudaStream_t>(ctx.getStream())>>>(out.data, outshape, outstride, in.data, inshape, instride, in.rank, dim, base, outsize);
 
-    cudaMemcpy(outshape, out.shape, outotherbytes, cudaMemcpyHostToDevice);
-    cudaMemcpy(outstride, out.stride, outotherbytes, cudaMemcpyHostToDevice);
-    cudaMemcpy(inshape, in.shape, inotherbytes, cudaMemcpyHostToDevice);
-    cudaMemcpy(instride, in.stride, inotherbytes, cudaMemcpyHostToDevice);
-
-    reduce_kernel<Func><<<blocks, threads, 0, static_cast<cudaStream_t>(ctx.getStream())>>>(outdata, outshape, outstride, indata, inshape, instride, in.rank, dim, base, outsize);
-        
     ctx.synchronize();
-    cudaMemcpy(out.data, outdata, outfbytes, cudaMemcpyDeviceToHost);
-    cudaFree(outdata); cudaFree(outshape); cudaFree(outstride); cudaFree(indata); cudaFree(inshape); cudaFree(instride);
+    cudaFree(outshape); cudaFree(outstride); cudaFree(inshape); cudaFree(instride);
 }
 
 void reduce_max(const View& out, const View& in, int32_t dim) { reduce_op<max>(out, in, dim, -std::numeric_limits<float>::infinity()); }

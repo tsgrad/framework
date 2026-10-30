@@ -8,13 +8,11 @@
 // addon.cc does not call this directly.
 //
 // Rank 2: out[M, N] = a[M, K] @ b[K, N]. Strides still apply, because a
-// permute() result shares its Float32Array and only changes stride.
+// permute() result shares its Storage and only changes stride.
 //
 // Sequence, same as elementwise.cu:
 //   Context::get()
-//   copy a, b, and the output buffer to the device
-//   matmul_kernel<<<grid, block, 0, stream>>>
-//   copy the output buffer back
+//   matmul_kernel<<<grid, block, 0, stream>>> on View::data
 //   Context::synchronize()
 
 namespace tsgrad::cuda {
@@ -60,36 +58,20 @@ void matmul(const View& out, const View& a, const View& b) {
 
     const long long outsize = static_cast<long long>(m) * static_cast<long long>(n);
     if (outsize == 0) return;
-    
-    long long asize = prod(a.shape, a.rank);
-    long long bsize = prod(b.shape, b.rank);
 
     Context& ctx = Context::get();
 
-    float *outdata, *adata, *bdata;
-    size_t outfbytes = outsize * sizeof(float), afbytes = asize * sizeof(float), bfbytes = bsize * sizeof(float); 
-    
     dim3 threads(32, 8);
     dim3 blocks((n + threads.x - 1) / threads.x, (m + threads.y - 1) / threads.y);
 
-    cudaMalloc(&outdata, outfbytes);
-    cudaMalloc(&adata, afbytes);
-    cudaMalloc(&bdata, bfbytes);
-    
-    cudaMemcpy(outdata, out.data, outfbytes, cudaMemcpyHostToDevice);
-    cudaMemcpy(adata, a.data, afbytes, cudaMemcpyHostToDevice);
-    cudaMemcpy(bdata, b.data, bfbytes, cudaMemcpyHostToDevice);
-
     matmul_kernel<<<blocks, threads, 0, static_cast<cudaStream_t>(ctx.getStream())>>>(
-        outdata, out.stride[0], out.stride[1],
-        adata, a.stride[0], a.stride[1],
-        bdata, b.stride[0], b.stride[1],
+        out.data, out.stride[0], out.stride[1],
+        a.data, a.stride[0], a.stride[1],
+        b.data, b.stride[0], b.stride[1],
         m, n, k
     );
 
     ctx.synchronize();
-    cudaMemcpy(out.data, outdata, outfbytes, cudaMemcpyDeviceToHost);
-    cudaFree(outdata); cudaFree(adata); cudaFree(bdata);
 }
 
 } // namespace tsgrad::cuda

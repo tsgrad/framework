@@ -11,13 +11,11 @@
 // weight [outChannels, inChannels, kWidth].
 // conv2d adds a height axis on input, weight, and out.
 // reverse walks the kernel backward. Samples outside the input are 0.
-// Strides still apply, because a permute() result shares its Float32Array.
+// Strides still apply, because a permute() result shares its Storage.
 //
 // Sequence, same as elementwise.cu:
 //   Context::get()
-//   copy input, weight, and the output buffer to the device
-//   conv*_kernel<<<grid, block, 0, stream>>>
-//   copy the output buffer back
+//   conv*_kernel<<<grid, block, 0, stream>>> on View::data
 //   Context::synchronize()
 
 namespace tsgrad::cuda {
@@ -120,39 +118,21 @@ void conv1d(const View& out, const View& input, const View& weight, bool reverse
     const long long out_size = static_cast<long long>(batch) * static_cast<long long>(out_channels) * static_cast<long long>(out_width);
     if (out_size == 0) return;
 
-    const long long insize = prod(input.shape, input.rank);
-    const long long weightsize = prod(weight.shape, weight.rank);
-
     Context& ctx = Context::get();
-
-    float *outdata, *indata, *weightdata;
-    const size_t outfbytes = static_cast<size_t>(out_size) * sizeof(float);
-    const size_t infbytes = static_cast<size_t>(insize) * sizeof(float);
-    const size_t weightfbytes = static_cast<size_t>(weightsize) * sizeof(float);
 
     const int32_t threads = 256;
     const int32_t blocks = static_cast<int32_t>((out_size + threads - 1) / threads);
 
-    cudaMalloc(&outdata, outfbytes);
-    cudaMalloc(&indata, infbytes);
-    cudaMalloc(&weightdata, weightfbytes);
-
-    cudaMemcpy(outdata, out.data, outfbytes, cudaMemcpyHostToDevice);
-    cudaMemcpy(indata, input.data, infbytes, cudaMemcpyHostToDevice);
-    cudaMemcpy(weightdata, weight.data, weightfbytes, cudaMemcpyHostToDevice);
-
     conv1d_kernel<<<blocks, threads, 0, static_cast<cudaStream_t>(ctx.getStream())>>>(
-        outdata, out.stride[0], out.stride[1], out.stride[2],
-        indata, input.stride[0], input.stride[1], input.stride[2],
-        weightdata, weight.stride[0], weight.stride[1], weight.stride[2],
+        out.data, out.stride[0], out.stride[1], out.stride[2],
+        input.data, input.stride[0], input.stride[1], input.stride[2],
+        weight.data, weight.stride[0], weight.stride[1], weight.stride[2],
         batch, out_channels, out_width,
         in_channels, width, k_width,
         reverse
     );
 
     ctx.synchronize();
-    cudaMemcpy(out.data, outdata, outfbytes, cudaMemcpyDeviceToHost);
-    cudaFree(outdata); cudaFree(indata); cudaFree(weightdata);
 }
 
 void conv2d(const View& out, const View& input, const View& weight, bool reverse) {
@@ -181,39 +161,21 @@ void conv2d(const View& out, const View& input, const View& weight, bool reverse
     const long long out_size = static_cast<long long>(batch) * plane;
     if (out_size == 0) return;
 
-    const long long insize = prod(input.shape, input.rank);
-    const long long weightsize = prod(weight.shape, weight.rank);
-
     Context& ctx = Context::get();
-
-    float *outdata, *indata, *weightdata;
-    const size_t outfbytes = static_cast<size_t>(out_size) * sizeof(float);
-    const size_t infbytes = static_cast<size_t>(insize) * sizeof(float);
-    const size_t weightfbytes = static_cast<size_t>(weightsize) * sizeof(float);
 
     const int32_t threads = 256;
     const int32_t blocks = static_cast<int32_t>((out_size + threads - 1) / threads);
 
-    cudaMalloc(&outdata, outfbytes);
-    cudaMalloc(&indata, infbytes);
-    cudaMalloc(&weightdata, weightfbytes);
-
-    cudaMemcpy(outdata, out.data, outfbytes, cudaMemcpyHostToDevice);
-    cudaMemcpy(indata, input.data, infbytes, cudaMemcpyHostToDevice);
-    cudaMemcpy(weightdata, weight.data, weightfbytes, cudaMemcpyHostToDevice);
-
     conv2d_kernel<<<blocks, threads, 0, static_cast<cudaStream_t>(ctx.getStream())>>>(
-        outdata, out.stride[0], out.stride[1], out.stride[2], out.stride[3],
-        indata, input.stride[0], input.stride[1], input.stride[2], input.stride[3],
-        weightdata, weight.stride[0], weight.stride[1], weight.stride[2], weight.stride[3],
+        out.data, out.stride[0], out.stride[1], out.stride[2], out.stride[3],
+        input.data, input.stride[0], input.stride[1], input.stride[2], input.stride[3],
+        weight.data, weight.stride[0], weight.stride[1], weight.stride[2], weight.stride[3],
         batch, out_channels, out_height, out_width,
         in_channels, height, width, k_height, k_width,
         reverse
     );
 
     ctx.synchronize();
-    cudaMemcpy(out.data, outdata, outfbytes, cudaMemcpyDeviceToHost);
-    cudaFree(outdata); cudaFree(indata); cudaFree(weightdata);
 }
 
 } // namespace tsgrad::cuda
