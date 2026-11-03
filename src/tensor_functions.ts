@@ -9,43 +9,43 @@ import {tensorMap, tensorZip, tensorReduce, matMul, tensorConv1d, tensorConv2d }
 import { randomFloat } from "./helperfunctions.js";
 
 export function neg(a: TensorData): TensorData{
-    const out = TensorData.fill(a.shape, 0);
+    const out = TensorData.empty(a.shape);
     tensorMap(operators.neg)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride);
     return out;
 }
 
 export function inv(a: TensorData): TensorData{
-    const out = TensorData.fill(a.shape, 0);
+    const out = TensorData.empty(a.shape);
     tensorMap(operators.inv)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride);
     return out;
 }
 
 export function sigmoid(a: TensorData): TensorData{
-    const out = TensorData.fill(a.shape, 0);
+    const out = TensorData.empty(a.shape);
     tensorMap(operators.sigmoid)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride);
     return out;
 }
 
 export function relu(a: TensorData): TensorData{
-    const out = TensorData.fill(a.shape, 0);
+    const out = TensorData.empty(a.shape);
     tensorMap(operators.relu)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride);
     return out;
 }
 
 export function log(a: TensorData): TensorData{
-    const out = TensorData.fill(a.shape, 0);
+    const out = TensorData.empty(a.shape);
     tensorMap(operators.log)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride);
     return out;
 }
 
 export function exp(a: TensorData): TensorData{
-    const out = TensorData.fill(a.shape, 0);
+    const out = TensorData.empty(a.shape);
     tensorMap(operators.exp)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride);
     return out;
 }
 
 export function id(a: TensorData): TensorData{
-    const out = TensorData.fill(a.shape, 0);
+    const out = TensorData.empty(a.shape);
     tensorMap(operators.id)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride);
     return out;
 }
@@ -53,42 +53,56 @@ export function id(a: TensorData): TensorData{
 export function max(input: TensorData, dim: number): TensorData{
     const outShape = [...input._shape];
     outShape[dim] = 1;
-    const out = TensorData.fill(outShape)
+    const out = TensorData.empty(outShape)
     tensorReduce(operators.max, -Infinity)(out._storage, out._shape, out._stride, input._storage, input._shape, input._stride, dim);
     return out;
 }
 
 export function add(a: TensorData, b: TensorData): TensorData{
     const outShape = shapeBroadcast(a._shape, b._shape);
-    const out = TensorData.fill(outShape, 0);
+    const out = TensorData.empty(outShape);
     tensorZip(operators.add)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride, b._storage, b._shape, b._stride);
     return out;
 }
 
 export function mul(a: TensorData, b: TensorData): TensorData{
     const outShape = shapeBroadcast(a._shape, b._shape);
-    const out = TensorData.fill(outShape, 0);
+    const out = TensorData.empty(outShape);
     tensorZip(operators.mul)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride, b._storage, b._shape, b._stride);
     return out;
 }
 
 export function lt(a: TensorData, b: TensorData): TensorData{
     const outShape = shapeBroadcast(a._shape, b._shape);
-    const out = TensorData.fill(outShape, 0);
+    const out = TensorData.empty(outShape);
     tensorZip(operators.lt)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride, b._storage, b._shape, b._stride);
     return out;
 }
 
 export function eq(a: TensorData, b: TensorData): TensorData{
     const outShape = shapeBroadcast(a._shape, b._shape);
-    const out = TensorData.fill(outShape, 0);
+    const out = TensorData.empty(outShape);
     tensorZip(operators.eq)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride, b._storage, b._shape, b._stride);
+    return out;
+}
+
+export function sub(a: TensorData, b: TensorData): TensorData{
+    const outShape = shapeBroadcast(a._shape, b._shape);
+    const out = TensorData.empty(outShape);
+    tensorZip(operators.sub)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride, b._storage, b._shape, b._stride);
+    return out;
+}
+
+export function div(a: TensorData, b: TensorData): TensorData{
+    const outShape = shapeBroadcast(a._shape, b._shape);
+    const out = TensorData.empty(outShape);
+    tensorZip(operators.div)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride, b._storage, b._shape, b._stride);
     return out;
 }
 
 export function isclose(a: TensorData, b: TensorData): TensorData{
     const outShape = shapeBroadcast(a._shape, b._shape);
-    const out = TensorData.fill(outShape, 0);
+    const out = TensorData.empty(outShape);
     tensorZip(operators.isClose)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride, b._storage, b._shape, b._stride);
     return out;
 }
@@ -96,7 +110,7 @@ export function isclose(a: TensorData, b: TensorData): TensorData{
 export function matmul(a: TensorData, b: TensorData): TensorData{
     if (a._shape.length != 2 || b._shape.length != 2)
         throw "both a and b's shapes must be of length 2 for now";
-    let out = TensorData.fill([a._shape[0], b._shape[1]]);
+    let out = TensorData.empty([a._shape[0], b._shape[1]]);
     matMul(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride, b._storage, b._shape, b._stride);
     return out;
 }
@@ -122,7 +136,7 @@ export function conv1d(input: TensorData, weight: TensorData, reverse: boolean =
 
     if (inChannels != inChannels2) throw "in channels must be same between both input shape and weight shape";
 
-    let out = TensorData.fill([batch, outChannel, outWidth ? outWidth : w]);
+    let out = TensorData.empty([batch, outChannel, outWidth ? outWidth : w]);
     tensorConv1d(out._storage, out._shape, out._stride, input._storage, input._shape, input._stride, weight._storage, weight._shape, weight._stride, reverse);
     return out;
 }
@@ -134,7 +148,7 @@ export function conv2d(input: TensorData, weight: TensorData, reverse: boolean =
 
     if (inChannels != inChannels2) throw "in channels must be same between both input shape and weight shape";
 
-    let out = TensorData.fill([batch, outChannel, h, w]);
+    let out = TensorData.empty([batch, outChannel, h, w]);
     tensorConv2d(out._storage, out._shape, out._stride, input._storage, input._shape, input._stride, weight._storage, weight._shape, weight._stride, reverse);
     return out;
 }
@@ -145,7 +159,7 @@ export function sum(a: TensorData, dim: number): TensorData{
     if (dim < a.shape.length && dim >= 0)
         outShape[dim] = 1;
 
-    const out = TensorData.fill(outShape, 0);
+    const out = TensorData.empty(outShape);
     tensorReduce(operators.add, 0)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride, dim);
     return out;
 }
@@ -155,7 +169,7 @@ export function prod(a: TensorData, dim: number): TensorData{
     if (dim < a.shape.length && dim >= 0)
         outShape[dim] = 1;
 
-    const out = TensorData.fill(outShape, 0);
+    const out = TensorData.empty(outShape);
     tensorReduce(operators.mul, 1)(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride, dim);
     return out;
 }
@@ -168,7 +182,7 @@ export function view(a: TensorData, shape: Shape): TensorData{
     if (operators.prod(shape) !== operators.prod(a._shape))
         throw "view received different sizes, received: " + a + " and shape: " + shape;
 
-    return new TensorData(a._storage, shape);
+    return TensorData.share(a._storage, shape);
 }
 
 export function tocontiguous(a: TensorData): TensorData{
@@ -301,6 +315,30 @@ export class Add extends TensorFunction{
     static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
         let [a, b] = ctx.savedValues;
         return [unbroadcast(gradOutput, a.shape()), unbroadcast(gradOutput, b.shape())];
+    }
+}
+
+export class Sub extends TensorFunction{
+    static forward(ctx: Context, a: Tensor, b: Tensor): Tensor{
+        ctx.saveForBackward(a, b);
+        return new Tensor(sub(a.data, b.data));
+    }
+    static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
+        let [a, b] = ctx.savedValues;
+        return [unbroadcast(gradOutput, a.shape()), unbroadcast(gradOutput.neg(), b.shape())];
+    }
+}
+
+export class Div extends TensorFunction{
+    static forward(ctx: Context, a: Tensor, b: Tensor): Tensor{
+        ctx.saveForBackward(a, b);
+        return new Tensor(div(a.data, b.data));
+    }
+    static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
+        let [a, b] = ctx.savedValues;
+        const gradA = gradOutput.div(b);
+        const gradB = gradOutput.neg().mul(a).div(b.mul(b));
+        return [unbroadcast(gradA, a.shape()), unbroadcast(gradB, b.shape())];
     }
 }
 

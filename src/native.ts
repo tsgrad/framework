@@ -46,7 +46,9 @@ export type NativeAddon = {
     mapExp: MapNative;
     mapId: MapNative;
     zipAdd: ZipNative;
+    zipSub: ZipNative;
     zipMul: ZipNative;
+    zipDiv: ZipNative;
     zipLt: ZipNative;
     zipEq: ZipNative;
     zipIsClose: ZipNative;
@@ -57,8 +59,23 @@ export type NativeAddon = {
     conv1d: ConvNative;
     conv2d: ConvNative;
     alloc: (numel: number, fill?: number) => NativeStorage;
+    empty: (numel: number) => NativeStorage;
+    retain: (storage: NativeStorage) => void;
+    release: (storage: NativeStorage) => void;
+    fill: (storage: NativeStorage, value: number) => void;
     copyToHost: (storage: NativeStorage) => Float32Array;
     copyFromHost: (storage: NativeStorage, values: Float32Array) => void;
+    sgd: (
+        param: NativeStorage, shape: Shape, stride: Stride,
+        grad: NativeStorage, gradShape: Shape, gradStride: Stride,
+        lr: number,
+    ) => void;
+    sgdMomentum: (
+        param: NativeStorage, shape: Shape, stride: Stride,
+        grad: NativeStorage, gradShape: Shape, gradStride: Stride,
+        velocity: NativeStorage, velocityShape: Shape, velocityStride: Stride,
+        lr: number, beta: number,
+    ) => void;
 };
 
 // Missing .node means every caller stays on the TypeScript loops.

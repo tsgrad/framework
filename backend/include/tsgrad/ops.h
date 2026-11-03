@@ -35,10 +35,16 @@ void map_id(const View& out, const View& in);
 // One output element from a broadcast pair. Same indexing as tensorZip.
 // zip_is_close writes 1 when abs(a - b) < 1e-2, else 0. That tolerance is operators.isClose.
 void zip_add(const View& out, const View& a, const View& b);
+void zip_sub(const View& out, const View& a, const View& b);
 void zip_mul(const View& out, const View& a, const View& b);
+void zip_div(const View& out, const View& a, const View& b);
 void zip_lt(const View& out, const View& a, const View& b);
 void zip_eq(const View& out, const View& a, const View& b);
 void zip_is_close(const View& out, const View& a, const View& b);
+
+// param and grad are the same shape. Both are updated through param's data.
+void sgd(const View& param, const View& grad, float lr);
+void sgd_momentum(const View& param, const View& grad, const View& velocity, float lr, float beta);
 
 // out's reduced dimension has length 1. base is the identity:
 // max uses -infinity, sum uses 0, prod uses 1. Same walk as tensorReduce.
@@ -89,10 +95,15 @@ void map_exp(const View& out, const View& in);
 void map_id(const View& out, const View& in);
 
 void zip_add(const View& out, const View& a, const View& b);
+void zip_sub(const View& out, const View& a, const View& b);
 void zip_mul(const View& out, const View& a, const View& b);
+void zip_div(const View& out, const View& a, const View& b);
 void zip_lt(const View& out, const View& a, const View& b);
 void zip_eq(const View& out, const View& a, const View& b);
 void zip_is_close(const View& out, const View& a, const View& b);
+
+void sgd(const View& param, const View& grad, float lr);
+void sgd_momentum(const View& param, const View& grad, const View& velocity, float lr, float beta);
 
 void reduce_max(const View& out, const View& in, int32_t dim);
 void reduce_sum(const View& out, const View& in, int32_t dim);

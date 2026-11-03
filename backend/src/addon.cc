@@ -44,24 +44,62 @@ public:
     static tsgrad::Storage& require(Napi::Env env, const Napi::Value& value, const char* name);
 
     StorageWrap(const Napi::CallbackInfo& info);
+    ~StorageWrap();
     std::shared_ptr<tsgrad::Storage> storage;
 
 private:
+    void account(Napi::Env env);
+    void recycle(Napi::Env env);
+
     static Napi::FunctionReference constructor;
     static Napi::Value Alloc(const Napi::CallbackInfo& info);
+    static Napi::Value Empty(const Napi::CallbackInfo& info);
+    static Napi::Value Retain(const Napi::CallbackInfo& info);
+    static Napi::Value Release(const Napi::CallbackInfo& info);
+    static Napi::Value Fill(const Napi::CallbackInfo& info);
     static Napi::Value CopyToHost(const Napi::CallbackInfo& info);
     static Napi::Value CopyFromHost(const Napi::CallbackInfo& info);
+
+    int owners = 0;
+    bool accounted = false;
 };
 
 Napi::FunctionReference StorageWrap::constructor;
 
 StorageWrap::StorageWrap(const Napi::CallbackInfo& info) : Napi::ObjectWrap<StorageWrap>(info) {}
 
+StorageWrap::~StorageWrap() {
+    recycle(Env());
+}
+
+void StorageWrap::account(Napi::Env env) {
+    if (accounted || !storage) return;
+    const int64_t bytes = static_cast<int64_t>(storage->numel()) * static_cast<int64_t>(sizeof(float));
+    if (bytes == 0) return;
+    Napi::MemoryManagement::AdjustExternalMemory(env, bytes);
+    accounted = true;
+}
+
+void StorageWrap::recycle(Napi::Env env) {
+    if (!storage) return;
+    const int64_t bytes = static_cast<int64_t>(storage->numel()) * static_cast<int64_t>(sizeof(float));
+    storage.reset();
+    owners = 0;
+    if (accounted && bytes > 0) {
+        Napi::MemoryManagement::AdjustExternalMemory(env, -bytes);
+        accounted = false;
+    }
+}
+
 Napi::Object StorageWrap::Init(Napi::Env env, Napi::Object exports) {
     Napi::Function func = DefineClass(env, "NativeStorage", {});
     constructor = Napi::Persistent(func);
     constructor.SuppressDestruct();
     exports.Set("alloc", Napi::Function::New(env, &StorageWrap::Alloc));
+    exports.Set("empty", Napi::Function::New(env, &StorageWrap::Empty));
+    exports.Set("retain", Napi::Function::New(env, &StorageWrap::Retain));
+    exports.Set("release", Napi::Function::New(env, &StorageWrap::Release));
+    exports.Set("fill", Napi::Function::New(env, &StorageWrap::Fill));
     exports.Set("copyToHost", Napi::Function::New(env, &StorageWrap::CopyToHost));
     exports.Set("copyFromHost", Napi::Function::New(env, &StorageWrap::CopyFromHost));
     return exports;
@@ -98,13 +136,81 @@ Napi::Value StorageWrap::Alloc(const Napi::CallbackInfo& info) {
 
     try {
         Napi::Object obj = constructor.New({});
-        Unwrap(obj)->storage = std::make_shared<tsgrad::Storage>(numel, fill);
+        StorageWrap* wrap = Unwrap(obj);
+        wrap->storage = std::make_shared<tsgrad::Storage>(numel, true, fill);
+        wrap->owners = 1;
+        wrap->account(env);
         return obj;
     } catch (const Napi::Error&) {
         throw;
     } catch (const std::exception& ex) {
         throw Napi::Error::New(env, ex.what());
     }
+}
+
+Napi::Value StorageWrap::Empty(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() != 1 || !info[0].IsNumber()) {
+        throw Napi::TypeError::New(env, "empty expects (numel)");
+    }
+    const double raw = info[0].As<Napi::Number>().DoubleValue();
+    if (!(raw >= 0.0) || raw > static_cast<double>(SIZE_MAX)) {
+        throw Napi::RangeError::New(env, "numel is out of range");
+    }
+    const size_t numel = static_cast<size_t>(raw);
+
+    try {
+        Napi::Object obj = constructor.New({});
+        StorageWrap* wrap = Unwrap(obj);
+        wrap->storage = std::make_shared<tsgrad::Storage>(numel, false, 0.0F);
+        wrap->owners = 1;
+        wrap->account(env);
+        return obj;
+    } catch (const Napi::Error&) {
+        throw;
+    } catch (const std::exception& ex) {
+        throw Napi::Error::New(env, ex.what());
+    }
+}
+
+Napi::Value StorageWrap::Retain(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() != 1) {
+        throw Napi::TypeError::New(env, "retain expects (storage)");
+    }
+    require(env, info[0], "storage");
+    StorageWrap* wrap = Unwrap(info[0].As<Napi::Object>());
+    wrap->owners++;
+    return env.Undefined();
+}
+
+Napi::Value StorageWrap::Release(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() != 1) {
+        throw Napi::TypeError::New(env, "release expects (storage)");
+    }
+    require(env, info[0], "storage");
+    StorageWrap* wrap = Unwrap(info[0].As<Napi::Object>());
+    if (wrap->owners <= 0) {
+        throw Napi::Error::New(env, "release on a storage with no owners");
+    }
+    wrap->owners--;
+    if (wrap->owners == 0) wrap->recycle(env);
+    return env.Undefined();
+}
+
+Napi::Value StorageWrap::Fill(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() != 2 || !info[1].IsNumber()) {
+        throw Napi::TypeError::New(env, "fill expects (storage, value)");
+    }
+    tsgrad::Storage& storage = require(env, info[0], "storage");
+    try {
+        storage.fill(info[1].As<Napi::Number>().FloatValue());
+    } catch (const std::exception& ex) {
+        throw Napi::Error::New(env, ex.what());
+    }
+    return env.Undefined();
 }
 
 Napi::Value StorageWrap::CopyToHost(const Napi::CallbackInfo& info) {
@@ -285,6 +391,53 @@ Napi::Value bind_conv(const Napi::CallbackInfo& info, ConvFn fn) {
     return env.Undefined();
 }
 
+Napi::Value bind_sgd(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() != 7) {
+        throw Napi::TypeError::New(env, "sgd expects (param, shape, stride, grad, gradShape, gradStride, lr)");
+    }
+    std::vector<int32_t> shape = read_i32_array(env, info[1], "shape");
+    std::vector<int32_t> stride = read_i32_array(env, info[2], "stride");
+    std::vector<int32_t> grad_shape = read_i32_array(env, info[4], "gradShape");
+    std::vector<int32_t> grad_stride = read_i32_array(env, info[5], "gradStride");
+    check_rank(env, shape, stride, "param");
+    check_rank(env, grad_shape, grad_stride, "grad");
+    if (!info[6].IsNumber()) {
+        throw Napi::TypeError::New(env, "lr must be a number");
+    }
+    float lr = info[6].As<Napi::Number>().FloatValue();
+    tsgrad::View param = make_view(env, info[0], shape, stride, "param");
+    tsgrad::View grad = make_view(env, info[3], grad_shape, grad_stride, "grad");
+    call_native(env, [&](){ tsgrad::sgd(param, grad, lr); });
+    return env.Undefined();
+}
+
+Napi::Value bind_sgd_momentum(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() != 11) {
+        throw Napi::TypeError::New(env, "sgdMomentum expects (param, shape, stride, grad, gradShape, gradStride, velocity, velocityShape, velocityStride, lr, beta)");
+    }
+    std::vector<int32_t> shape = read_i32_array(env, info[1], "shape");
+    std::vector<int32_t> stride = read_i32_array(env, info[2], "stride");
+    std::vector<int32_t> grad_shape = read_i32_array(env, info[4], "gradShape");
+    std::vector<int32_t> grad_stride = read_i32_array(env, info[5], "gradStride");
+    std::vector<int32_t> velocity_shape = read_i32_array(env, info[7], "velocityShape");
+    std::vector<int32_t> velocity_stride = read_i32_array(env, info[8], "velocityStride");
+    check_rank(env, shape, stride, "param");
+    check_rank(env, grad_shape, grad_stride, "grad");
+    check_rank(env, velocity_shape, velocity_stride, "velocity");
+    if (!info[9].IsNumber() || !info[10].IsNumber()) {
+        throw Napi::TypeError::New(env, "lr and beta must be numbers");
+    }
+    float lr = info[9].As<Napi::Number>().FloatValue();
+    float beta = info[10].As<Napi::Number>().FloatValue();
+    tsgrad::View param = make_view(env, info[0], shape, stride, "param");
+    tsgrad::View grad = make_view(env, info[3], grad_shape, grad_stride, "grad");
+    tsgrad::View velocity = make_view(env, info[6], velocity_shape, velocity_stride, "velocity");
+    call_native(env, [&](){ tsgrad::sgd_momentum(param, grad, velocity, lr, beta); });
+    return env.Undefined();
+}
+
 void export_conv(Napi::Env env, Napi::Object& exports, const char* name, ConvFn fn) {
     exports.Set(name, Napi::Function::New(env, [fn](const Napi::CallbackInfo& info) {
         return bind_conv(info, fn);
@@ -302,7 +455,9 @@ Napi::Object init(Napi::Env env, Napi::Object exports) {
     export_map(env, exports, "mapId", tsgrad::map_id);
 
     export_zip(env, exports, "zipAdd", tsgrad::zip_add);
+    export_zip(env, exports, "zipSub", tsgrad::zip_sub);
     export_zip(env, exports, "zipMul", tsgrad::zip_mul);
+    export_zip(env, exports, "zipDiv", tsgrad::zip_div);
     export_zip(env, exports, "zipLt", tsgrad::zip_lt);
     export_zip(env, exports, "zipEq", tsgrad::zip_eq);
     export_zip(env, exports, "zipIsClose", tsgrad::zip_is_close);
@@ -314,6 +469,8 @@ Napi::Object init(Napi::Env env, Napi::Object exports) {
     export_zip(env, exports, "matmul", tsgrad::matmul);
     export_conv(env, exports, "conv1d", tsgrad::conv1d);
     export_conv(env, exports, "conv2d", tsgrad::conv2d);
+    exports.Set("sgd", Napi::Function::New(env, bind_sgd));
+    exports.Set("sgdMomentum", Napi::Function::New(env, bind_sgd_momentum));
     return exports;
 }
 

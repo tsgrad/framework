@@ -192,8 +192,10 @@ void zip_op(const View& out, const View& a, const View& b){
 }
 
 void zip_add(const View& out, const View& a, const View& b) { zip_op<add>(out, a, b); }
+void zip_sub(const View& out, const View& a, const View& b) { zip_op<sub>(out, a, b); }
 
 void zip_mul(const View& out, const View& a, const View& b) { zip_op<mul>(out, a, b); }
+void zip_div(const View& out, const View& a, const View& b) { zip_op<div>(out, a, b); }
 void zip_lt(const View& out, const View& a, const View& b) { zip_op<lt>(out, a, b); }
 void zip_eq(const View& out, const View& a, const View& b) { zip_op<eq>(out, a, b); }
 void zip_is_close(const View& out, const View& a, const View& b) { zip_op<is_close>(out, a, b); }

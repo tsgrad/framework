@@ -16,7 +16,9 @@ namespace tsgrad::cuda{
     __device__ float inv(float a){ return 1/a; }
     
     __device__ float add(float a, float b){ return a + b; }
+    __device__ float sub(float a, float b){ return a - b; }
     __device__ float mul(float a, float b){ return a * b; }
+    __device__ float div(float a, float b){ return a / b; }
     __device__ float lt(float a, float b){ return a < b ? 1 : 0; }
     __device__ float eq(float a, float b){ return a == b; }
     __device__ float max(float a, float b){ return a > b ? a : b; }

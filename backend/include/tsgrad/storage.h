@@ -14,11 +14,14 @@
 // Owned float buffer. A CPU build keeps a std::vector. A CUDA build keeps one
 // device allocation. View::data points at data() for the duration of an op
 // and must not be freed by that op.
+//
+// Released blocks go back to a free list. cudaFree runs when that list is
+// torn down. A recycled block is left dirty unless initialize is set.
 namespace tsgrad {
 
 class Storage {
 public:
-    Storage(size_t numel, float fill);
+    Storage(size_t numel, bool initialize, float fill);
     ~Storage();
 
     Storage(const Storage&) = delete;
@@ -27,6 +30,7 @@ public:
     size_t numel() const { return numel_; }
     float* data();
 
+    void fill(float value);
     void copy_to_host(float* dst) const;
     void copy_from_host(const float* src);
 

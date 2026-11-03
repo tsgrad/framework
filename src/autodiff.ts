@@ -63,32 +63,69 @@ export function topologicalSort(variable: Variable): Variable[] {
     return res.reverse();
 }
 
-export function backpropagate(start: Variable, dStart: any): void{
-    let order: Variable[] = topologicalSort(start);
-    let derivatives: Map<number, any> = new Map<number, any>();
-    derivatives.set(start.uniqueId, dStart);
+let backwardDepth = 0;
 
-    for (const val of order){
-        if (val.isLeaf()){
-            val.accumulateDerivative(derivatives.get(val.uniqueId)!);
-        }
-        else if (val.isConstant()){
-            continue;
-        }
-        else{
-            let valDerivatives = val.chainRule(derivatives.get(val.uniqueId));
-            for (const [parent, d] of valDerivatives){
-                const cur = derivatives.get(parent.uniqueId);
-                if (cur === undefined){
-                    derivatives.set(parent.uniqueId, d);
+export function inBackward(): boolean {
+    return backwardDepth > 0;
+}
+
+function releaseGrad(grad: any, held: Map<number, any>): void {
+    if (grad == null || typeof grad !== "object" || typeof grad.data?.release !== "function") return;
+    for (const value of held.values()) {
+        if (value === grad) return;
+    }
+    grad.data.release();
+}
+
+function detachTape(val: Variable): void {
+    const history = val.history;
+    if (!history) return;
+    history.inputs = [];
+    if (history.ctx) history.ctx.savedValues = [];
+    history.lastFn = undefined;
+}
+
+export function backpropagate(start: Variable, dStart: any): void{
+    backwardDepth++;
+    try {
+        let order: Variable[] = topologicalSort(start);
+        let derivatives: Map<number, any> = new Map<number, any>();
+        derivatives.set(start.uniqueId, dStart);
+
+        for (const val of order){
+            if (val.isLeaf()){
+                const grad = derivatives.get(val.uniqueId);
+                if (grad !== undefined) val.accumulateDerivative(grad);
+                derivatives.delete(val.uniqueId);
+                releaseGrad(grad, derivatives);
+            }
+            else if (val.isConstant()){
+                continue;
+            }
+            else{
+                const grad = derivatives.get(val.uniqueId);
+                let valDerivatives = val.chainRule(grad);
+                derivatives.delete(val.uniqueId);
+                for (const [parent, d] of valDerivatives){
+                    const cur = derivatives.get(parent.uniqueId);
+                    if (cur === undefined){
+                        derivatives.set(parent.uniqueId, d);
+                    }
+                    else if (typeof cur === "number"){
+                        derivatives.set(parent.uniqueId, cur + d);
+                        releaseGrad(d, derivatives);
+                    }
+                    else{
+                        derivatives.set(parent.uniqueId, cur.add(d));
+                        releaseGrad(cur, derivatives);
+                        releaseGrad(d, derivatives);
+                    }
                 }
-                else if (typeof cur === "number"){
-                    derivatives.set(parent.uniqueId, cur + d);
-                }
-                else{
-                    derivatives.set(parent.uniqueId, cur.add(d));
-                }
+                releaseGrad(grad, derivatives);
+                detachTape(val);
             }
         }
+    } finally {
+        backwardDepth--;
     }
 }

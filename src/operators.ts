@@ -10,6 +10,14 @@ export function add(a: number, b: number): number{
     return a + b;
 }
 
+export function sub(a: number, b: number): number{
+    return a - b;
+}
+
+export function div(a: number, b: number): number{
+    return a / b;
+}
+
 // Just means flip the sign
 export function neg(a: number): number{
     return -a;

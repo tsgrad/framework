@@ -159,12 +159,30 @@ void zip_add(const View& out, const View& a, const View& b) {
     }
 }
 
+void zip_sub(const View& out, const View& a, const View& b) {
+    if constexpr (TSGRAD_HAS_CUDA){
+        cuda::zip_sub(out, a, b);
+    }
+    else{
+        zip_op([](float x, float y) -> float { return x - y; }, out, a, b);
+    }
+}
+
 void zip_mul(const View& out, const View& a, const View& b) {
     if constexpr (TSGRAD_HAS_CUDA){
         cuda::zip_mul(out, a, b);
     }
     else{
         zip_op([](float x, float y) -> float { return x * y; }, out, a, b);
+    }
+}
+
+void zip_div(const View& out, const View& a, const View& b) {
+    if constexpr (TSGRAD_HAS_CUDA){
+        cuda::zip_div(out, a, b);
+    }
+    else{
+        zip_op([](float x, float y) -> float { return x / y; }, out, a, b);
     }
 }
 

@@ -42,7 +42,9 @@ export function tensorMap(func: (x: number) => number): MapCall {
 export function tensorZip(func: (x: number, y: number) => number): ZipCall {
     if (native) {
         if (func === operators.add) return native.zipAdd as ZipCall;
+        if (func === operators.sub) return native.zipSub as ZipCall;
         if (func === operators.mul) return native.zipMul as ZipCall;
+        if (func === operators.div) return native.zipDiv as ZipCall;
         if (func === operators.lt) return native.zipLt as ZipCall;
         if (func === operators.eq) return native.zipEq as ZipCall;
         if (func === operators.isClose) return native.zipIsClose as ZipCall;

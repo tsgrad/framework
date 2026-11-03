@@ -85,8 +85,9 @@ export class TensorData{
     shape: UserShape;
     dims: number;
     size: number;
+    private _released = false;
 
-    constructor(storage: TensorBuffer, shape: Shape, strides: Stride = TensorData.calculateStrides(shape)){
+    constructor(storage: TensorBuffer, shape: Shape, strides: Stride = TensorData.calculateStrides(shape), retain = false){
         this._shape = shape;
         this._stride = strides;
 
@@ -102,6 +103,7 @@ export class TensorData{
                 if (this.size > 0) native.copyFromHost(handle, storage);
                 this._storage = handle;
             } else {
+                if (retain) native.retain(storage);
                 this._storage = storage;
             }
         } else {
@@ -109,6 +111,10 @@ export class TensorData{
             if (storage.length !== this.size) throw "_storage.length not equal to this.size";
             this._storage = storage;
         }
+    }
+
+    static share(storage: TensorBuffer, shape: Shape, strides: Stride = TensorData.calculateStrides(shape)): TensorData {
+        return new TensorData(storage, shape, strides, true);
     }
 
     static fill(shape: Shape, num: number = 0): TensorData{
@@ -119,6 +125,21 @@ export class TensorData{
         const storage = new Float32Array(new SharedArrayBuffer(size * Float32Array.BYTES_PER_ELEMENT));
         storage.fill(num);
         return new TensorData(storage, shape, TensorData.calculateStrides(shape));
+    }
+
+    static empty(shape: Shape): TensorData{
+        let size = prod(shape);
+        if (native) {
+            return new TensorData(native.empty(size), shape, TensorData.calculateStrides(shape));
+        }
+        const storage = new Float32Array(new SharedArrayBuffer(size * Float32Array.BYTES_PER_ELEMENT));
+        return new TensorData(storage, shape, TensorData.calculateStrides(shape));
+    }
+
+    release(): void {
+        if (this._released) return;
+        this._released = true;
+        if (native && !(this._storage instanceof Float32Array)) native.release(this._storage);
     }
 
     static calculateStrides(shape: Shape): Stride{
@@ -151,6 +172,6 @@ export class TensorData{
             newShape[i] = this._shape[order[i]];
             newStride[i] = this._stride[order[i]];
         }
-        return new TensorData(this._storage, newShape, newStride);
+        return TensorData.share(this._storage, newShape, newStride);
     }
 }

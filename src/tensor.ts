@@ -1,6 +1,9 @@
-import { backpropagate, Context, Variable } from "./autodiff.js";
+import { backpropagate, Context, inBackward, Variable } from "./autodiff.js";
 import { readStorage, TensorData, UserShape, Shape } from "./tensor_data.js";
-import { Add, TensorFunction, Neg, Mul, Inv, LT, EQ, IsClose, Sigmoid, ReLU, Log, Exp, Sum, Permute, ToContiguous, View, MatMul, Conv1d, Conv2d, Max } from "./tensor_functions.js";
+import { native } from "./native.js";
+import { tensorMap, tensorZip } from "./native_ops.js";
+import * as operators from "./operators.js";
+import { Add, TensorFunction, Neg, Mul, Inv, LT, EQ, IsClose, Sigmoid, ReLU, Log, Exp, Sum, Permute, ToContiguous, View, MatMul, Conv1d, Conv2d, Max, Sub, Div } from "./tensor_functions.js";
 
 export class History{
     lastFn : typeof TensorFunction | undefined;
@@ -82,7 +85,7 @@ export class Tensor implements Variable{
     }
 
     sub(b: Tensor | number): Tensor{
-        return Tensor.apply(Add, this, Tensor.apply(Neg, this._ensureTensor(b)));
+        return Tensor.apply(Sub, this, this._ensureTensor(b));
     }
 
     mul(b: Tensor | number): Tensor{
@@ -90,7 +93,49 @@ export class Tensor implements Variable{
     }
 
     div(b: Tensor | number): Tensor{
-        return Tensor.apply(Mul, this, Tensor.apply(Inv, this._ensureTensor(b)));
+        return Tensor.apply(Div, this, this._ensureTensor(b));
+    }
+
+    private _sameShape(other: Tensor): boolean {
+        const a = this.shape();
+        const b = other.shape();
+        if (a.length !== b.length) return false;
+        for (let i = 0; i < a.length; i++) {
+            if (a[i] !== b[i]) return false;
+        }
+        return true;
+    }
+
+    add_(b: Tensor | number): Tensor {
+        if (this.requiresGrad()) throw "add_ on a tensor that requires grad";
+        const other = this._ensureTensor(b);
+        if (!this._sameShape(other)) throw "add_ requires the same shape";
+        tensorZip(operators.add)(this.data._storage, this.data._shape, this.data._stride, this.data._storage, this.data._shape, this.data._stride, other.data._storage, other.data._shape, other.data._stride);
+        return this;
+    }
+
+    mul_(b: Tensor | number): Tensor {
+        if (this.requiresGrad()) throw "mul_ on a tensor that requires grad";
+        const other = this._ensureTensor(b);
+        if (!this._sameShape(other)) throw "mul_ requires the same shape";
+        tensorZip(operators.mul)(this.data._storage, this.data._shape, this.data._stride, this.data._storage, this.data._shape, this.data._stride, other.data._storage, other.data._shape, other.data._stride);
+        return this;
+    }
+
+    relu_(): Tensor {
+        if (this.requiresGrad()) throw "relu_ on a tensor that requires grad";
+        tensorMap(operators.relu)(this.data._storage, this.data._shape, this.data._stride, this.data._storage, this.data._shape, this.data._stride);
+        return this;
+    }
+
+    fill_(value: number): Tensor {
+        if (this.data._storage instanceof Float32Array) {
+            this.data._storage.fill(value);
+            return this;
+        }
+        if (!native) throw "native storage requires the addon";
+        native.fill(this.data._storage, value);
+        return this;
     }
 
     /* Once we add matrix multiplication
@@ -179,7 +224,7 @@ export class Tensor implements Variable{
         let needGrad = false;
 
         for (const val of vals){
-            if (val.requiresGrad())
+            if (!inBackward() && val.requiresGrad())
                 needGrad = true;
             rawVals.push(val.detach());
         }
@@ -200,9 +245,8 @@ export class Tensor implements Variable{
 
     accumulateDerivative(grad: Tensor): void{
         if (this.grad === undefined)
-            this.grad = grad;
-        else
-            this.grad = this.grad.add(grad);
+            this.grad = new Tensor(TensorData.fill(this.shape(), 0));
+        this.grad.add_(grad);
     }
 
     chainRule(gradOutput: Tensor): [Tensor, Tensor][]{
