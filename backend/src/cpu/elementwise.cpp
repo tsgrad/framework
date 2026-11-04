@@ -1,8 +1,5 @@
 #include "tsgrad/ops.h"
-#include "tsgrad/rng.hpp"
 #include "helpers.hpp"
-
-#include <cstdint>
 #include <vector>
 #include <stdexcept>
 #include <omp.h>
@@ -205,24 +202,6 @@ void zip_eq(const View& out, const View& a, const View& b) {
     else{
         zip_op([](float x, float y) -> float { return x == y; }, out, a, b);
     }
-}
-
-void uniform(float* data, size_t numel, float low, float high) {
-    if (data == nullptr || numel == 0) return;
-
-    static uint64_t counter = 0x9e3779b97f4a7c15ULL;
-    uint64_t seed = counter;
-    counter += static_cast<uint64_t>(numel);
-
-    if constexpr (TSGRAD_HAS_CUDA) {
-        cuda::uniform(data, numel, low, high, seed);
-        return;
-    }
-
-    const float span = high - low;
-    #pragma omp parallel for
-    for (long long i = 0; i < static_cast<long long>(numel); i++)
-        data[i] = low + span * uniform01(seed, static_cast<uint64_t>(i));
 }
 
 void zip_is_close(const View& out, const View& a, const View& b) {

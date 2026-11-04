@@ -3,7 +3,7 @@ import { readStorage, TensorData, UserShape, Shape } from "./tensor_data.js";
 import { native } from "./native.js";
 import { tensorMap, tensorZip } from "./native_ops.js";
 import * as operators from "./operators.js";
-import { Add, TensorFunction, Neg, Mul, Inv, LT, EQ, IsClose, Sigmoid, ReLU, Log, Exp, Sum, Permute, ToContiguous, View, MatMul, Conv1d, Conv2d, Max, Sub, Div, BiasAct, type BiasActivation } from "./tensor_functions.js";
+import { Add, TensorFunction, Neg, Mul, Inv, LT, EQ, IsClose, Sigmoid, ReLU, Log, Exp, Sum, Permute, ToContiguous, View, MatMul, Conv1d, Conv2d, Max, Sub, Div } from "./tensor_functions.js";
 
 export class History{
     lastFn : typeof TensorFunction | undefined;
@@ -169,14 +169,6 @@ export class Tensor implements Variable{
 
     relu(): Tensor{
         return Tensor.apply(ReLU, this);
-    }
-
-    biasAct(bias: Tensor, activation: BiasActivation): Tensor{
-        if (!native) {
-            const pre = this.add(bias);
-            return activation === "relu" ? pre.relu() : pre.sigmoid();
-        }
-        return Tensor.apply(BiasAct(activation), this, bias);
     }
 
     log(): Tensor{

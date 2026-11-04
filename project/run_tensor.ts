@@ -41,8 +41,10 @@ export abstract class Network extends Module{
 
     forward(x: Tensor): Tensor{
         let h = x;
-        for (let i = 0; i < this.layers.length; i++)
-            h = this.layers[i].layer.forward(h, this.layers[i].activationFunction);
+        for (let i = 0; i < this.layers.length; i++){
+            h = this.layers[i].layer.forward(h);
+            h = h[this.layers[i].activationFunction]();
+        }
         return h;
     }
 
@@ -62,7 +64,7 @@ export abstract class Layer extends Module{
         this.outSize = outSize;
     }
 
-    abstract forward(x: Tensor, activation?: ActivationFunction): Tensor;
+    abstract forward(x: Tensor): Tensor;
 }
 
 export class Linear extends Layer{
@@ -74,10 +76,8 @@ export class Linear extends Layer{
         this.bias = this.addParameter(`bias`, RParam(outSize));
     }
 
-    forward(inputs: Tensor, activation?: ActivationFunction): Tensor{
-        const pre = inputs.matmul(this.weights.value as Tensor);
-        if (activation === undefined) return pre.add(this.bias.value as Tensor);
-        return pre.biasAct(this.bias.value as Tensor, activation);
+    forward(inputs: Tensor): Tensor{
+        return inputs.matmul(this.weights.value as Tensor).add(this.bias.value as Tensor);
 
         /* we have matmul now so this is no longer needed
         // we want output = [batchsize, outsize]

@@ -1,5 +1,4 @@
 #include "tsgrad/ops.h"
-#include "tsgrad/rng.hpp"
 #include "cudahelpers.hpp"
 #include "cudaops.hpp"
 #include <format>
@@ -195,12 +194,6 @@ void reduce_op(const View& out, const View& in, int32_t dim, float base){
     ctx.checkLastError();
 }
 
-__global__ void uniform_kernel(float* data, long long n, float low, float span, unsigned long long seed) {
-    long long i = static_cast<long long>(blockIdx.x) * blockDim.x + threadIdx.x;
-    if (i >= n) return;
-    data[i] = low + span * uniform01(seed, static_cast<unsigned long long>(i));
-}
-
 void fill(float* data, size_t numel, float value) {
     if (numel == 0 || data == nullptr) return;
 
@@ -208,16 +201,6 @@ void fill(float* data, size_t numel, float value) {
     const int threads = 256;
     const int blocks = static_cast<int>((numel + threads - 1) / threads);
     fill_kernel<<<blocks, threads, 0, static_cast<cudaStream_t>(ctx.getStream())>>>(data, static_cast<long long>(numel), value);
-    ctx.checkLastError();
-}
-
-void uniform(float* data, size_t numel, float low, float high, uint64_t seed) {
-    if (numel == 0 || data == nullptr) return;
-
-    Context& ctx = Context::get();
-    const int threads = 256;
-    const int blocks = static_cast<int>((numel + threads - 1) / threads);
-    uniform_kernel<<<blocks, threads, 0, static_cast<cudaStream_t>(ctx.getStream())>>>(data, static_cast<long long>(numel), low, high - low, static_cast<unsigned long long>(seed));
     ctx.checkLastError();
 }
 
