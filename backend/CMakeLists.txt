@@ -59,6 +59,7 @@ add_library(tsgrad_native SHARED
     src/cpu/matmul.cpp
     src/cpu/conv.cpp
     src/cpu/optim.cpp
+    src/cpu/fused.cpp
 )
 
 # native.ts loads this exact file. Per-config output dirs are set so Visual Studio
@@ -120,6 +121,7 @@ if(TSGRAD_CUDA)
             src/cuda/matmul.cu
             src/cuda/conv.cu
             src/cuda/optim.cu
+            src/cuda/fused.cu
         )
         set_target_properties(tsgrad_native PROPERTIES CUDA_ARCHITECTURES native)
         target_link_libraries(tsgrad_native PRIVATE CUDA::cudart CUDA::cublas)

@@ -57,6 +57,7 @@ private:
     static Napi::Value Retain(const Napi::CallbackInfo& info);
     static Napi::Value Release(const Napi::CallbackInfo& info);
     static Napi::Value Fill(const Napi::CallbackInfo& info);
+    static Napi::Value Uniform(const Napi::CallbackInfo& info);
     static Napi::Value CopyToHost(const Napi::CallbackInfo& info);
     static Napi::Value CopyFromHost(const Napi::CallbackInfo& info);
 
@@ -112,6 +113,7 @@ Napi::Object StorageWrap::Init(Napi::Env env, Napi::Object exports) {
     exports.Set("retain", Napi::Function::New(env, &StorageWrap::Retain));
     exports.Set("release", Napi::Function::New(env, &StorageWrap::Release));
     exports.Set("fill", Napi::Function::New(env, &StorageWrap::Fill));
+    exports.Set("uniform", Napi::Function::New(env, &StorageWrap::Uniform));
     exports.Set("copyToHost", Napi::Function::New(env, &StorageWrap::CopyToHost));
     exports.Set("copyFromHost", Napi::Function::New(env, &StorageWrap::CopyFromHost));
     exports.Set("synchronize", Napi::Function::New(env, Synchronize));
@@ -226,6 +228,22 @@ Napi::Value StorageWrap::Fill(const Napi::CallbackInfo& info) {
     return env.Undefined();
 }
 
+Napi::Value StorageWrap::Uniform(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() != 3 || !info[1].IsNumber() || !info[2].IsNumber()) {
+        throw Napi::TypeError::New(env, "uniform expects (storage, low, high)");
+    }
+    tsgrad::Storage& storage = require(env, info[0], "storage");
+    float low = info[1].As<Napi::Number>().FloatValue();
+    float high = info[2].As<Napi::Number>().FloatValue();
+    try {
+        tsgrad::uniform(storage.data(), storage.numel(), low, high);
+    } catch (const std::exception& ex) {
+        throw Napi::Error::New(env, ex.what());
+    }
+    return env.Undefined();
+}
+
 Napi::Value StorageWrap::CopyToHost(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
     if (info.Length() != 1) {
@@ -280,6 +298,28 @@ void check_rank(Napi::Env env, const std::vector<int32_t>& shape, const std::vec
     if (shape.size() != stride.size()) {
         throw Napi::TypeError::New(env, std::string(name) + " shape and stride must have the same length");
     }
+}
+
+struct Owned {
+    std::vector<int32_t> shape;
+    std::vector<int32_t> stride;
+};
+
+tsgrad::View take_view(Napi::Env env, const Napi::CallbackInfo& info, size_t at, Owned& owned, const char* name) {
+    owned.shape = read_i32_array(env, info[at + 1], name);
+    owned.stride = read_i32_array(env, info[at + 2], name);
+    check_rank(env, owned.shape, owned.stride, name);
+    return make_view(env, info[at], owned.shape, owned.stride, name);
+}
+
+int32_t take_i32(Napi::Env env, const Napi::Value& value, const char* name) {
+    if (!value.IsNumber()) throw Napi::TypeError::New(env, std::string(name) + " must be a number");
+    return value.As<Napi::Number>().Int32Value();
+}
+
+float take_f32(Napi::Env env, const Napi::Value& value, const char* name) {
+    if (!value.IsNumber()) throw Napi::TypeError::New(env, std::string(name) + " must be a number");
+    return value.As<Napi::Number>().FloatValue();
 }
 
 using MapFn = void (*)(const tsgrad::View&, const tsgrad::View&);
@@ -457,6 +497,216 @@ void export_conv(Napi::Env env, Napi::Object& exports, const char* name, ConvFn 
     }));
 }
 
+Napi::Value bind_softmax(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() != 7) throw Napi::TypeError::New(env, "softmax expects (out, outShape, outStride, input, inShape, inStride, dim)");
+    Owned out_a, in_a;
+    tsgrad::View out = take_view(env, info, 0, out_a, "out");
+    tsgrad::View in = take_view(env, info, 3, in_a, "input");
+    int32_t dim = take_i32(env, info[6], "dim");
+    call_native(env, [&](){ tsgrad::softmax(out, in, dim); });
+    return env.Undefined();
+}
+
+Napi::Value bind_softmax_backward(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() != 10) throw Napi::TypeError::New(env, "softmaxBackward expects (out, outShape, outStride, softmax, softmaxShape, softmaxStride, grad, gradShape, gradStride, dim)");
+    Owned out_a, s_a, g_a;
+    tsgrad::View out = take_view(env, info, 0, out_a, "out");
+    tsgrad::View softmax = take_view(env, info, 3, s_a, "softmax");
+    tsgrad::View grad = take_view(env, info, 6, g_a, "grad");
+    int32_t dim = take_i32(env, info[9], "dim");
+    call_native(env, [&](){ tsgrad::softmax_backward(out, softmax, grad, dim); });
+    return env.Undefined();
+}
+
+Napi::Value bind_log_softmax(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() != 7) throw Napi::TypeError::New(env, "logSoftmax expects (out, outShape, outStride, input, inShape, inStride, dim)");
+    Owned out_a, in_a;
+    tsgrad::View out = take_view(env, info, 0, out_a, "out");
+    tsgrad::View in = take_view(env, info, 3, in_a, "input");
+    int32_t dim = take_i32(env, info[6], "dim");
+    call_native(env, [&](){ tsgrad::log_softmax(out, in, dim); });
+    return env.Undefined();
+}
+
+Napi::Value bind_log_softmax_backward(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() != 10) throw Napi::TypeError::New(env, "logSoftmaxBackward expects (out, outShape, outStride, logSoftmax, logSoftmaxShape, logSoftmaxStride, grad, gradShape, gradStride, dim)");
+    Owned out_a, l_a, g_a;
+    tsgrad::View out = take_view(env, info, 0, out_a, "out");
+    tsgrad::View log_softmax = take_view(env, info, 3, l_a, "logSoftmax");
+    tsgrad::View grad = take_view(env, info, 6, g_a, "grad");
+    int32_t dim = take_i32(env, info[9], "dim");
+    call_native(env, [&](){ tsgrad::log_softmax_backward(out, log_softmax, grad, dim); });
+    return env.Undefined();
+}
+
+Napi::Value bind_softmax_cross_entropy(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() != 13) throw Napi::TypeError::New(env, "softmaxCrossEntropy expects (loss, lossShape, lossStride, softmax, softmaxShape, softmaxStride, logits, logitsShape, logitsStride, target, targetShape, targetStride, dim)");
+    Owned loss_a, s_a, x_a, t_a;
+    tsgrad::View loss = take_view(env, info, 0, loss_a, "loss");
+    tsgrad::View softmax = take_view(env, info, 3, s_a, "softmax");
+    tsgrad::View logits = take_view(env, info, 6, x_a, "logits");
+    tsgrad::View target = take_view(env, info, 9, t_a, "target");
+    int32_t dim = take_i32(env, info[12], "dim");
+    call_native(env, [&](){ tsgrad::softmax_cross_entropy(loss, softmax, logits, target, dim); });
+    return env.Undefined();
+}
+
+Napi::Value bind_softmax_cross_entropy_backward(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() != 10) throw Napi::TypeError::New(env, "softmaxCrossEntropyBackward expects (gradLogits, gradLogitsShape, gradLogitsStride, softmax, softmaxShape, softmaxStride, target, targetShape, targetStride, dim)");
+    Owned g_a, s_a, t_a;
+    tsgrad::View grad = take_view(env, info, 0, g_a, "gradLogits");
+    tsgrad::View softmax = take_view(env, info, 3, s_a, "softmax");
+    tsgrad::View target = take_view(env, info, 6, t_a, "target");
+    int32_t dim = take_i32(env, info[9], "dim");
+    call_native(env, [&](){ tsgrad::softmax_cross_entropy_backward(grad, softmax, target, dim); });
+    return env.Undefined();
+}
+
+Napi::Value bind_relu_backward(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() != 9) throw Napi::TypeError::New(env, "reluBackward expects (out, outShape, outStride, grad, gradShape, gradStride, input, inShape, inStride)");
+    Owned out_a, g_a, in_a;
+    tsgrad::View out = take_view(env, info, 0, out_a, "out");
+    tsgrad::View grad = take_view(env, info, 3, g_a, "grad");
+    tsgrad::View input = take_view(env, info, 6, in_a, "input");
+    call_native(env, [&](){ tsgrad::relu_backward(out, grad, input); });
+    return env.Undefined();
+}
+
+Napi::Value bind_sigmoid_backward(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() != 9) throw Napi::TypeError::New(env, "sigmoidBackward expects (out, outShape, outStride, grad, gradShape, gradStride, output, outputShape, outputStride)");
+    Owned out_a, g_a, y_a;
+    tsgrad::View out = take_view(env, info, 0, out_a, "out");
+    tsgrad::View grad = take_view(env, info, 3, g_a, "grad");
+    tsgrad::View output = take_view(env, info, 6, y_a, "output");
+    call_native(env, [&](){ tsgrad::sigmoid_backward(out, grad, output); });
+    return env.Undefined();
+}
+
+Napi::Value bind_expand(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() != 6) throw Napi::TypeError::New(env, "expand expects (out, outShape, outStride, input, inShape, inStride)");
+    Owned out_a, in_a;
+    tsgrad::View out = take_view(env, info, 0, out_a, "out");
+    tsgrad::View input = take_view(env, info, 3, in_a, "input");
+    call_native(env, [&](){ tsgrad::expand(out, input); });
+    return env.Undefined();
+}
+
+Napi::Value bind_bias_act(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() != 10) throw Napi::TypeError::New(env, "biasAct expects (out, outShape, outStride, input, inShape, inStride, bias, biasShape, biasStride, act)");
+    Owned out_a, in_a, b_a;
+    tsgrad::View out = take_view(env, info, 0, out_a, "out");
+    tsgrad::View input = take_view(env, info, 3, in_a, "input");
+    tsgrad::View bias = take_view(env, info, 6, b_a, "bias");
+    int32_t act = take_i32(env, info[9], "act");
+    call_native(env, [&](){ tsgrad::bias_act(out, input, bias, act); });
+    return env.Undefined();
+}
+
+Napi::Value bind_bias_act_backward(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() != 16) throw Napi::TypeError::New(env, "biasActBackward expects (gradInput, gradInputShape, gradInputStride, gradBias, gradBiasShape, gradBiasStride, grad, gradShape, gradStride, saved, savedShape, savedStride, bias, biasShape, biasStride, act)");
+    Owned gi_a, gb_a, g_a, s_a, b_a;
+    tsgrad::View grad_input = take_view(env, info, 0, gi_a, "gradInput");
+    tsgrad::View grad_bias = take_view(env, info, 3, gb_a, "gradBias");
+    tsgrad::View grad = take_view(env, info, 6, g_a, "grad");
+    tsgrad::View saved = take_view(env, info, 9, s_a, "saved");
+    tsgrad::View bias = take_view(env, info, 12, b_a, "bias");
+    int32_t act = take_i32(env, info[15], "act");
+    call_native(env, [&](){ tsgrad::bias_act_backward(grad_input, grad_bias, grad, saved, bias, act); });
+    return env.Undefined();
+}
+
+Napi::Value bind_layer_norm(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() != 19) throw Napi::TypeError::New(env, "layerNorm expects (out, outShape, outStride, mean, meanShape, meanStride, rstd, rstdShape, rstdStride, input, inShape, inStride, weight, weightShape, weightStride, bias, biasShape, biasStride, eps)");
+    Owned out_a, mean_a, rstd_a, in_a, w_a, b_a;
+    tsgrad::View out = take_view(env, info, 0, out_a, "out");
+    tsgrad::View mean = take_view(env, info, 3, mean_a, "mean");
+    tsgrad::View rstd = take_view(env, info, 6, rstd_a, "rstd");
+    tsgrad::View input = take_view(env, info, 9, in_a, "input");
+    tsgrad::View weight = take_view(env, info, 12, w_a, "weight");
+    tsgrad::View bias = take_view(env, info, 15, b_a, "bias");
+    float eps = take_f32(env, info[18], "eps");
+    call_native(env, [&](){ tsgrad::layer_norm(out, mean, rstd, input, weight, bias, eps); });
+    return env.Undefined();
+}
+
+Napi::Value bind_layer_norm_backward(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() != 24) throw Napi::TypeError::New(env, "layerNormBackward expects (gradInput, gradInputShape, gradInputStride, gradWeight, gradWeightShape, gradWeightStride, gradBias, gradBiasShape, gradBiasStride, grad, gradShape, gradStride, input, inShape, inStride, mean, meanShape, meanStride, rstd, rstdShape, rstdStride, weight, weightShape, weightStride)");
+    Owned gi_a, gw_a, gb_a, g_a, in_a, mean_a, rstd_a, w_a;
+    tsgrad::View grad_input = take_view(env, info, 0, gi_a, "gradInput");
+    tsgrad::View grad_weight = take_view(env, info, 3, gw_a, "gradWeight");
+    tsgrad::View grad_bias = take_view(env, info, 6, gb_a, "gradBias");
+    tsgrad::View grad = take_view(env, info, 9, g_a, "grad");
+    tsgrad::View input = take_view(env, info, 12, in_a, "input");
+    tsgrad::View mean = take_view(env, info, 15, mean_a, "mean");
+    tsgrad::View rstd = take_view(env, info, 18, rstd_a, "rstd");
+    tsgrad::View weight = take_view(env, info, 21, w_a, "weight");
+    call_native(env, [&](){ tsgrad::layer_norm_backward(grad_input, grad_weight, grad_bias, grad, input, mean, rstd, weight); });
+    return env.Undefined();
+}
+
+Napi::Value bind_max_pool2d(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() != 8) throw Napi::TypeError::New(env, "maxPool2d expects (out, outShape, outStride, input, inShape, inStride, kh, kw)");
+    Owned out_a, in_a;
+    tsgrad::View out = take_view(env, info, 0, out_a, "out");
+    tsgrad::View input = take_view(env, info, 3, in_a, "input");
+    int32_t kh = take_i32(env, info[6], "kh");
+    int32_t kw = take_i32(env, info[7], "kw");
+    call_native(env, [&](){ tsgrad::max_pool2d(out, input, kh, kw); });
+    return env.Undefined();
+}
+
+Napi::Value bind_max_pool2d_backward(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() != 14) throw Napi::TypeError::New(env, "maxPool2dBackward expects (gradInput, gradInputShape, gradInputStride, grad, gradShape, gradStride, input, inShape, inStride, output, outputShape, outputStride, kh, kw)");
+    Owned gi_a, g_a, in_a, o_a;
+    tsgrad::View grad_input = take_view(env, info, 0, gi_a, "gradInput");
+    tsgrad::View grad = take_view(env, info, 3, g_a, "grad");
+    tsgrad::View input = take_view(env, info, 6, in_a, "input");
+    tsgrad::View output = take_view(env, info, 9, o_a, "output");
+    int32_t kh = take_i32(env, info[12], "kh");
+    int32_t kw = take_i32(env, info[13], "kw");
+    call_native(env, [&](){ tsgrad::max_pool2d_backward(grad_input, grad, input, output, kh, kw); });
+    return env.Undefined();
+}
+
+Napi::Value bind_avg_pool2d(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() != 8) throw Napi::TypeError::New(env, "avgPool2d expects (out, outShape, outStride, input, inShape, inStride, kh, kw)");
+    Owned out_a, in_a;
+    tsgrad::View out = take_view(env, info, 0, out_a, "out");
+    tsgrad::View input = take_view(env, info, 3, in_a, "input");
+    int32_t kh = take_i32(env, info[6], "kh");
+    int32_t kw = take_i32(env, info[7], "kw");
+    call_native(env, [&](){ tsgrad::avg_pool2d(out, input, kh, kw); });
+    return env.Undefined();
+}
+
+Napi::Value bind_avg_pool2d_backward(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() != 8) throw Napi::TypeError::New(env, "avgPool2dBackward expects (gradInput, gradInputShape, gradInputStride, grad, gradShape, gradStride, kh, kw)");
+    Owned gi_a, g_a;
+    tsgrad::View grad_input = take_view(env, info, 0, gi_a, "gradInput");
+    tsgrad::View grad = take_view(env, info, 3, g_a, "grad");
+    int32_t kh = take_i32(env, info[6], "kh");
+    int32_t kw = take_i32(env, info[7], "kw");
+    call_native(env, [&](){ tsgrad::avg_pool2d_backward(grad_input, grad, kh, kw); });
+    return env.Undefined();
+}
+
 Napi::Object init(Napi::Env env, Napi::Object exports) {
     StorageWrap::Init(env, exports);
     export_map(env, exports, "mapNeg", tsgrad::map_neg);
@@ -484,6 +734,23 @@ Napi::Object init(Napi::Env env, Napi::Object exports) {
     export_conv(env, exports, "conv2d", tsgrad::conv2d);
     exports.Set("sgd", Napi::Function::New(env, bind_sgd));
     exports.Set("sgdMomentum", Napi::Function::New(env, bind_sgd_momentum));
+    exports.Set("softmax", Napi::Function::New(env, bind_softmax));
+    exports.Set("softmaxBackward", Napi::Function::New(env, bind_softmax_backward));
+    exports.Set("logSoftmax", Napi::Function::New(env, bind_log_softmax));
+    exports.Set("logSoftmaxBackward", Napi::Function::New(env, bind_log_softmax_backward));
+    exports.Set("softmaxCrossEntropy", Napi::Function::New(env, bind_softmax_cross_entropy));
+    exports.Set("softmaxCrossEntropyBackward", Napi::Function::New(env, bind_softmax_cross_entropy_backward));
+    exports.Set("reluBackward", Napi::Function::New(env, bind_relu_backward));
+    exports.Set("sigmoidBackward", Napi::Function::New(env, bind_sigmoid_backward));
+    exports.Set("expand", Napi::Function::New(env, bind_expand));
+    exports.Set("biasAct", Napi::Function::New(env, bind_bias_act));
+    exports.Set("biasActBackward", Napi::Function::New(env, bind_bias_act_backward));
+    exports.Set("layerNorm", Napi::Function::New(env, bind_layer_norm));
+    exports.Set("layerNormBackward", Napi::Function::New(env, bind_layer_norm_backward));
+    exports.Set("maxPool2d", Napi::Function::New(env, bind_max_pool2d));
+    exports.Set("maxPool2dBackward", Napi::Function::New(env, bind_max_pool2d_backward));
+    exports.Set("avgPool2d", Napi::Function::New(env, bind_avg_pool2d));
+    exports.Set("avgPool2dBackward", Napi::Function::New(env, bind_avg_pool2d_backward));
     return exports;
 }
 

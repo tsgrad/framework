@@ -1,11 +1,12 @@
 import { Tensor } from "./tensor.js";
-import { Shape, shapeBroadcast, TensorData, writeStorage } from "./tensor_data.js";
+import { Shape, shapeBroadcast, TensorData } from "./tensor_data.js";
 import { Context } from "./autodiff.js";
 import * as operators from "./operators.js";
 // swap out if wanted, tensor_ops has non-multithreaded, the fastTensor stuff is multithreaded
 //import { tensorMap, tensorZip, tensorReduce } from "./tensor_ops.js";
 //import {/*fastTensorMap as tensorMap, fastTensorZip as tensorZip, fastTensorReduce as tensorReduce, fastMatMul as matMul,*/ fastConv1d as tensorConv1d, fastConv2d as tensorConv2d} from "./fast_ops.js";
-import {tensorMap, tensorZip, tensorReduce, matMul, tensorConv1d, tensorConv2d } from "./native_ops.js"
+import {tensorMap, tensorZip, tensorReduce, matMul, tensorConv1d, tensorConv2d, nativeSoftmax, nativeSoftmaxBackward, nativeLogSoftmax, nativeLogSoftmaxBackward, nativeSoftmaxCrossEntropy, nativeSoftmaxCrossEntropyBackward, nativeReluBackward, nativeSigmoidBackward, nativeExpand, nativeBiasAct, nativeBiasActBackward, nativeLayerNorm, nativeLayerNormBackward, nativeMaxPool2d, nativeMaxPool2dBackward, nativeAvgPool2d, nativeAvgPool2dBackward } from "./native_ops.js"
+import { native } from "./native.js";
 import { randomFloat } from "./helperfunctions.js";
 
 export function neg(a: TensorData): TensorData{
@@ -231,33 +232,74 @@ export function tile2d(input: Tensor, kernel : [number, number]): [Tensor, numbe
     return [input.view(batch, channel, newHeight, kh, newWidth, kw).permute(0, 1, 2, 4, 3, 5).tocontiguous().view(batch, channel, newHeight, newWidth, kh * kw), newHeight, newWidth];
 }
 
-export function avgpool2d(input: Tensor, kernel: [number, number]): Tensor{
-    const batch = input.shape()[0], channel = input.shape()[1], height = input.shape()[2], width = input.shape()[3];
+function poolFallback(input: Tensor, kernel: [number, number], average: boolean): Tensor {
+    const batch = input.shape()[0], channel = input.shape()[1];
     const kh = kernel[0], kw = kernel[1];
     const [tiled, newHeight, newWidth] = tile2d(input, kernel);
-
-    //[batch, channel, newHeight, newWidth, kernelHeight * kernelWidth]
-    // .sum(4) means sum along the tiled dimension --^
-    return tiled.sum(4).div(kh * kw).view(batch, channel, newHeight, newWidth);
-}
-
-export function maxpool2d(input: Tensor, kernel: [number, number]): Tensor{
-    const batch = input.shape()[0], channel = input.shape()[1], height = input.shape()[2], width = input.shape()[3];
-    const kh = kernel[0], kw = kernel[1];
-    const [tiled, newHeight, newWidth] = tile2d(input, kernel);
-
+    if (average)
+        return tiled.sum(4).div(kh * kw).view(batch, channel, newHeight, newWidth);
     return tiled.max(4).view(batch, channel, newHeight, newWidth);
 }
 
+export function AvgPool2d(kh: number, kw: number): typeof TensorFunction {
+    return class extends TensorFunction {
+        static forward(ctx: Context, input: Tensor): Tensor {
+            const batch = input.shape()[0], channel = input.shape()[1], height = input.shape()[2], width = input.shape()[3];
+            const out = TensorData.empty([batch, channel, Math.floor(height / kh), Math.floor(width / kw)]);
+            nativeAvgPool2d(out._storage, out._shape, out._stride, input.data._storage, input.data._shape, input.data._stride, kh, kw);
+            ctx.saveForBackward(input);
+            return new Tensor(out);
+        }
+        static backward(ctx: Context, gradOutput: Tensor): Tensor[] {
+            const [input] = ctx.savedValues as Tensor[];
+            const grad = TensorData.empty(input.shape());
+            nativeAvgPool2dBackward(grad._storage, grad._shape, grad._stride, gradOutput.data._storage, gradOutput.data._shape, gradOutput.data._stride, kh, kw);
+            return [new Tensor(grad)];
+        }
+    };
+}
+
+export function MaxPool2d(kh: number, kw: number): typeof TensorFunction {
+    return class extends TensorFunction {
+        static forward(ctx: Context, input: Tensor): Tensor {
+            const batch = input.shape()[0], channel = input.shape()[1], height = input.shape()[2], width = input.shape()[3];
+            const out = TensorData.empty([batch, channel, Math.floor(height / kh), Math.floor(width / kw)]);
+            nativeMaxPool2d(out._storage, out._shape, out._stride, input.data._storage, input.data._shape, input.data._stride, kh, kw);
+            const y = new Tensor(out);
+            ctx.saveForBackward(input, y);
+            return y;
+        }
+        static backward(ctx: Context, gradOutput: Tensor): Tensor[] {
+            const [input, y] = ctx.savedValues as Tensor[];
+            const grad = TensorData.empty(input.shape());
+            nativeMaxPool2dBackward(grad._storage, grad._shape, grad._stride, gradOutput.data._storage, gradOutput.data._shape, gradOutput.data._stride, input.data._storage, input.data._shape, input.data._stride, y.data._storage, y.data._shape, y.data._stride, kh, kw);
+            return [new Tensor(grad)];
+        }
+    };
+}
+
+export function avgpool2d(input: Tensor, kernel: [number, number]): Tensor{
+    if (!native) return poolFallback(input, kernel, true);
+    return Tensor.apply(AvgPool2d(kernel[0], kernel[1]), input);
+}
+
+export function maxpool2d(input: Tensor, kernel: [number, number]): Tensor{
+    if (!native) return poolFallback(input, kernel, false);
+    return Tensor.apply(MaxPool2d(kernel[0], kernel[1]), input);
+}
+
 export function rparam(shape: Shape, lowerBound: number = -1, upperBound: number = 1): Tensor{
-    // Random tensor where each cell is -1 to 1 with shape as the shape
-    const data = TensorData.fill(shape);
-    const values = new Float32Array(data.size);
+    // Uniform values in [lowerBound, upperBound). The addon writes them in parallel.
+    const data = TensorData.empty(shape);
+    if (native && !(data._storage instanceof Float32Array)) {
+        native.uniform(data._storage, lowerBound, upperBound);
+        return new Tensor(data);
+    }
+
+    const values = data._storage as Float32Array;
     for (let i = 0; i < values.length; i++)
         values[i] = randomFloat(lowerBound, upperBound);
-    writeStorage(data._storage, values);
-    const tensor = new Tensor(data);
-    return tensor;
+    return new Tensor(data);
 }
 
 export function dropout(input: Tensor, rate: number, ignore: boolean = false): Tensor{
@@ -276,14 +318,167 @@ export function argmax(input: Tensor, dim: number): Tensor{
     return new Tensor(max(input.data, dim)).eq(input);
 }
 
+export function Softmax(dim: number): typeof TensorFunction {
+    return class extends TensorFunction {
+        static forward(ctx: Context, a: Tensor): Tensor {
+            const out = TensorData.empty(a.shape());
+            nativeSoftmax(out._storage, out._shape, out._stride, a.data._storage, a.data._shape, a.data._stride, dim);
+            const y = new Tensor(out);
+            ctx.saveForBackward(y);
+            return y;
+        }
+        static backward(ctx: Context, gradOutput: Tensor): Tensor[] {
+            const [y] = ctx.savedValues as Tensor[];
+            const grad = TensorData.empty(y.shape());
+            nativeSoftmaxBackward(grad._storage, grad._shape, grad._stride, y.data._storage, y.data._shape, y.data._stride, gradOutput.data._storage, gradOutput.data._shape, gradOutput.data._stride, dim);
+            return [new Tensor(grad)];
+        }
+    };
+}
+
+export function LogSoftmax(dim: number): typeof TensorFunction {
+    return class extends TensorFunction {
+        static forward(ctx: Context, a: Tensor): Tensor {
+            const out = TensorData.empty(a.shape());
+            nativeLogSoftmax(out._storage, out._shape, out._stride, a.data._storage, a.data._shape, a.data._stride, dim);
+            const y = new Tensor(out);
+            ctx.saveForBackward(y);
+            return y;
+        }
+        static backward(ctx: Context, gradOutput: Tensor): Tensor[] {
+            const [y] = ctx.savedValues as Tensor[];
+            const grad = TensorData.empty(y.shape());
+            nativeLogSoftmaxBackward(grad._storage, grad._shape, grad._stride, y.data._storage, y.data._shape, y.data._stride, gradOutput.data._storage, gradOutput.data._shape, gradOutput.data._stride, dim);
+            return [new Tensor(grad)];
+        }
+    };
+}
+
 export function softmax(input: Tensor, dim: number): Tensor{
-    const exps = input.sub(new Tensor(max(input.data, dim))).exp();
-    return exps.div(exps.sum(dim));
+    if (!native) {
+        const exps = input.sub(new Tensor(max(input.data, dim))).exp();
+        return exps.div(exps.sum(dim));
+    }
+    return Tensor.apply(Softmax(dim), input);
 }
 
 export function logsoftmax(input: Tensor, dim: number): Tensor{
-    const shifted = input.sub(new Tensor(max(input.data, dim)));
-    return shifted.sub(shifted.exp().sum(dim).log());
+    if (!native) {
+        const shifted = input.sub(new Tensor(max(input.data, dim)));
+        return shifted.sub(shifted.exp().sum(dim).log());
+    }
+    return Tensor.apply(LogSoftmax(dim), input);
+}
+
+function crossEntropyFallback(logits: Tensor, target: Tensor, dim: number): Tensor {
+    if (dim < 0 || dim >= logits.dims()) throw "softmaxCrossEntropy received dim outside the boundaries of the shape";
+    const rows = logits.size() / logits.shape()[dim];
+    const logp = logsoftmax(logits, dim);
+    let nll = target.mul(logp).sum(dim).neg();
+    const dims = nll.dims();
+    for (let i = 0; i < dims; i++)
+        nll = nll.sum(i);
+    return nll.div(rows);
+}
+
+export function SoftmaxCrossEntropy(dim: number): typeof TensorFunction {
+    return class extends TensorFunction {
+        static forward(ctx: Context, logits: Tensor, target: Tensor): Tensor {
+            const probs = TensorData.empty(logits.shape());
+            const loss = TensorData.empty([1]);
+            nativeSoftmaxCrossEntropy(loss._storage, loss._shape, loss._stride, probs._storage, probs._shape, probs._stride, logits.data._storage, logits.data._shape, logits.data._stride, target.data._storage, target.data._shape, target.data._stride, dim);
+            ctx.saveForBackward(new Tensor(probs), target);
+            return new Tensor(loss);
+        }
+        static backward(ctx: Context, gradOutput: Tensor): Tensor[] {
+            const [probs, target] = ctx.savedValues as Tensor[];
+            const grad = TensorData.empty(probs.shape());
+            nativeSoftmaxCrossEntropyBackward(grad._storage, grad._shape, grad._stride, probs.data._storage, probs.data._shape, probs.data._stride, target.data._storage, target.data._shape, target.data._stride, dim);
+            return [new Tensor(grad).mul(gradOutput), new Tensor(TensorData.fill(target.shape(), 0))];
+        }
+    };
+}
+
+export function softmaxCrossEntropy(logits: Tensor, target: Tensor, dim: number): Tensor {
+    if (!native) return crossEntropyFallback(logits, target, dim);
+    return Tensor.apply(SoftmaxCrossEntropy(dim), logits, target);
+}
+
+export type BiasActivation = "relu" | "sigmoid";
+
+function actCode(activation: BiasActivation): number {
+    return activation === "relu" ? 0 : 1;
+}
+
+function sameShape(a: Tensor, b: Tensor): boolean {
+    const left = a.shape();
+    const right = b.shape();
+    if (left.length !== right.length) return false;
+    for (let i = 0; i < left.length; i++) {
+        if (left[i] !== right[i]) return false;
+    }
+    return true;
+}
+
+export function BiasAct(activation: BiasActivation): typeof TensorFunction {
+    const act = actCode(activation);
+    return class extends TensorFunction {
+        static forward(ctx: Context, input: Tensor, bias: Tensor): Tensor {
+            const out = TensorData.empty(shapeBroadcast(input.shape(), bias.shape()));
+            nativeBiasAct(out._storage, out._shape, out._stride, input.data._storage, input.data._shape, input.data._stride, bias.data._storage, bias.data._shape, bias.data._stride, act);
+            const y = new Tensor(out);
+            ctx.saveForBackward(input, bias, y);
+            return y;
+        }
+        static backward(ctx: Context, gradOutput: Tensor): Tensor[] {
+            const [input, bias, y] = ctx.savedValues as Tensor[];
+            const saved = activation === "relu" ? input : y;
+            const gradInput = TensorData.empty(gradOutput.shape());
+            const gradBias = TensorData.empty(bias.shape());
+            nativeBiasActBackward(gradInput._storage, gradInput._shape, gradInput._stride, gradBias._storage, gradBias._shape, gradBias._stride, gradOutput.data._storage, gradOutput.data._shape, gradOutput.data._stride, saved.data._storage, saved.data._shape, saved.data._stride, bias.data._storage, bias.data._shape, bias.data._stride, act);
+            let gIn = new Tensor(gradInput);
+            if (!sameShape(gIn, input)) gIn = unbroadcast(gIn, input.shape());
+            return [gIn, new Tensor(gradBias)];
+        }
+    };
+}
+
+export function layerNorm(x: Tensor, weight: Tensor, bias: Tensor, eps: number = 1e-5): Tensor {
+    if (x.dims() < 1) throw "layerNorm expected a last dimension";
+    if (!x.shape()[x.dims() - 1]) throw "layerNorm received an empty last dimension";
+    if (!native) {
+        const dim = x.dims() - 1;
+        const n = x.shape()[dim];
+        const mean = x.sum(dim).div(n);
+        const centered = x.sub(mean);
+        const variance = centered.mul(centered).sum(dim).div(n);
+        const rstd = variance.add(eps).log().mul(-0.5).exp();
+        return centered.mul(rstd).mul(weight).add(bias);
+    }
+    return Tensor.apply(LayerNorm(eps), x, weight, bias);
+}
+
+export function LayerNorm(eps: number): typeof TensorFunction {
+    return class extends TensorFunction {
+        static forward(ctx: Context, x: Tensor, weight: Tensor, bias: Tensor): Tensor {
+            const last = x.shape()[x.dims() - 1];
+            const rows = x.size() / last;
+            const out = TensorData.empty(x.shape());
+            const mean = TensorData.empty([rows]);
+            const rstd = TensorData.empty([rows]);
+            nativeLayerNorm(out._storage, out._shape, out._stride, mean._storage, mean._shape, mean._stride, rstd._storage, rstd._shape, rstd._stride, x.data._storage, x.data._shape, x.data._stride, weight.data._storage, weight.data._shape, weight.data._stride, bias.data._storage, bias.data._shape, bias.data._stride, eps);
+            ctx.saveForBackward(x, new Tensor(mean), new Tensor(rstd), weight, bias);
+            return new Tensor(out);
+        }
+        static backward(ctx: Context, gradOutput: Tensor): Tensor[] {
+            const [x, mean, rstd, weight, bias] = ctx.savedValues as Tensor[];
+            const gradX = TensorData.empty(x.shape());
+            const gradW = TensorData.empty(weight.shape());
+            const gradB = TensorData.empty(bias.shape());
+            nativeLayerNormBackward(gradX._storage, gradX._shape, gradX._stride, gradW._storage, gradW._shape, gradW._stride, gradB._storage, gradB._shape, gradB._stride, gradOutput.data._storage, gradOutput.data._shape, gradOutput.data._stride, x.data._storage, x.data._shape, x.data._stride, mean.data._storage, mean.data._shape, mean.data._stride, rstd.data._storage, rstd.data._shape, rstd.data._stride, weight.data._storage, weight.data._shape, weight.data._stride);
+            return [new Tensor(gradX), new Tensor(gradW), new Tensor(gradB)];
+        }
+    };
 }
 
 export class Neg extends TensorFunction{
@@ -360,8 +555,11 @@ export class Sigmoid extends TensorFunction{
         return res;
     }
     static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
-        let [res] = ctx.savedValues;
-        return [gradOutput.mul(res).mul(res.neg().add(1))];
+        let [res] = ctx.savedValues as Tensor[];
+        if (!native) return [gradOutput.mul(res).mul(res.neg().add(1))];
+        const grad = TensorData.empty(res.shape());
+        nativeSigmoidBackward(grad._storage, grad._shape, grad._stride, gradOutput.data._storage, gradOutput.data._shape, gradOutput.data._stride, res.data._storage, res.data._shape, res.data._stride);
+        return [new Tensor(grad)];
     }
 }
 
@@ -371,9 +569,14 @@ export class ReLU extends TensorFunction{
         return new Tensor(relu(a.data));
     }
     static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
-        let [a] = ctx.savedValues;
-        let relumask = new Tensor(lt(TensorData.fill(a.data.shape, 0), a.data)); // relumask[i] = 1 if a[i] > zeros[i] else 0
-        return [gradOutput.mul(relumask)];
+        let [a] = ctx.savedValues as Tensor[];
+        if (!native) {
+            let relumask = new Tensor(lt(TensorData.fill(a.data.shape, 0), a.data)); // relumask[i] = 1 if a[i] > zeros[i] else 0
+            return [gradOutput.mul(relumask)];
+        }
+        const grad = TensorData.empty(a.shape());
+        nativeReluBackward(grad._storage, grad._shape, grad._stride, gradOutput.data._storage, gradOutput.data._shape, gradOutput.data._stride, a.data._storage, a.data._shape, a.data._stride);
+        return [new Tensor(grad)];
     }
 }
 
@@ -506,8 +709,11 @@ export function Sum(dim: number): typeof TensorFunction {
             return new Tensor(sum(a.data, dim));
         }
         static backward(ctx: Context, gradOutput: Tensor): Tensor[] {
-            let [a] = ctx.savedValues;
-            return [gradOutput.mul(Tensor.ones(a.shape()))];
+            let [a] = ctx.savedValues as Tensor[];
+            if (!native) return [gradOutput.mul(Tensor.ones(a.shape()))];
+            const grad = TensorData.empty(a.shape());
+            nativeExpand(grad._storage, grad._shape, grad._stride, gradOutput.data._storage, gradOutput.data._shape, gradOutput.data._stride);
+            return [new Tensor(grad)];
         }
     };
 }

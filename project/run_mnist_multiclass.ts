@@ -5,7 +5,7 @@ import { readStorage, Shape, TensorData, writeStorage } from "../src/tensor_data
 import * as operators from "../src/operators.js"
 import { Graph } from "../src/datasets.js";
 import { Optimizer, SGD, SGDMomentum } from "../src/optim.js";
-import { dropout, logsoftmax, maxpool2d } from "../src/tensor_functions.js";
+import { dropout, maxpool2d, softmaxCrossEntropy } from "../src/tensor_functions.js";
 import { destroyPool } from "../src/fast_ops.js";
 
 const BATCH = 16;
@@ -71,10 +71,8 @@ export abstract class Network extends Module{
 
     forward(x: Tensor): Tensor{
         let h = x;
-        for (let i = 0; i < this.layers.length; i++){
-            h = this.layers[i].layer.forward(h);
-            h = h[this.layers[i].activationFunction]();
-        }
+        for (let i = 0; i < this.layers.length; i++)
+            h = this.layers[i].layer.forward(h, this.layers[i].activationFunction);
         return h;
     }
 
@@ -94,7 +92,7 @@ export abstract class Layer extends Module{
         this.outSize = outSize;
     }
 
-    abstract forward(x: Tensor): Tensor;
+    abstract forward(x: Tensor, activation?: ActivationFunction): Tensor;
 }
 
 export class Linear extends Layer{
@@ -106,8 +104,10 @@ export class Linear extends Layer{
         this.bias = this.addParameter(`bias`, ZeroParam(outSize));
     }
 
-    forward(inputs: Tensor): Tensor{
-        return inputs.matmul(this.weights.value as Tensor).add(this.bias.value as Tensor);
+    forward(inputs: Tensor, activation?: ActivationFunction): Tensor{
+        const pre = inputs.matmul(this.weights.value as Tensor);
+        if (activation === undefined) return pre.add(this.bias.value as Tensor);
+        return pre.biasAct(this.bias.value as Tensor, activation);
 
         /* we have matmul now so this is no longer needed
         // we want output = [batchsize, outsize]
@@ -134,8 +134,10 @@ export class Conv2d extends Layer{
         this.bias = this.addParameter(`bias`, ZeroParam(outChannels, 1, 1));
     }
 
-    forward(inputs: Tensor): Tensor{
-        return inputs.conv2d(this.weights.value as Tensor).add(this.bias.value as Tensor);
+    forward(inputs: Tensor, activation?: ActivationFunction): Tensor{
+        const pre = inputs.conv2d(this.weights.value as Tensor);
+        if (activation === undefined) return pre.add(this.bias.value as Tensor);
+        return pre.biasAct(this.bias.value as Tensor, activation);
     }
 }
 
@@ -154,16 +156,16 @@ export class MNistNetwork extends Network {
         this.linear2 = new Linear(64, C);
     }
     forward(x: Tensor): Tensor {
-        this.mid = this.conv1.forward(x).relu();
-        this.out = this.conv2.forward(this.mid).relu();
+        this.mid = this.conv1.forward(x, "relu");
+        this.out = this.conv2.forward(this.mid, "relu");
         const pooled = maxpool2d(this.out, [4, 4]);
         const batch = pooled.shape()[0];
         // 8 channels × 7 × 7 = 392
         let h = pooled.view(batch, 392);
-        h = this.linear1.forward(h).relu();
-        //h = dropout(h, 0.25, !this.training);
+        h = this.linear1.forward(h, "relu");
+        h = dropout(h, 0.25, !this.training);
         h = this.linear2.forward(h);
-        return logsoftmax(h, 1);
+        return h;
     }
 }
 
@@ -270,7 +272,6 @@ export class ImageTrain{
             for (let start = 0; start < trainImages.length; start += BATCH){
                 const imageBatch = trainImages.slice(start, start + BATCH);
                 const labelBatch = trainLabels.slice(start, start + BATCH);
-                const batchSize = imageBatch.length;
 
                 const x = this.imagesToTensor(imageBatch);
                 const y = this.labelsToTensor(labelBatch);
@@ -278,7 +279,7 @@ export class ImageTrain{
                 this.optim.zeroGrad();
 
                 const out = this.model.forward(x);
-                const loss = out.mul(y).sum(1).sum(0).div(batchSize).neg();
+                const loss = softmaxCrossEntropy(out, y, 1);
 
                 loss.backward();
                 this.optim.step();
@@ -302,7 +303,7 @@ export class ImageTrain{
 import { fileURLToPath } from "node:url";
 import { loadMnist } from "./mnist_data.js";
 const dataDirectory = fileURLToPath(new URL("./data/mnist/", import.meta.url));
-const dataTrain = await loadMnist(dataDirectory, "train", 0, 500);
+const dataTrain = await loadMnist(dataDirectory, "train", 0, 10000);
 const dataVal = await loadMnist(dataDirectory, "train", 10000, 500);
 
 const trainer = new ImageTrain();

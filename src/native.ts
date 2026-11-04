@@ -77,6 +77,24 @@ export type NativeAddon = {
         velocity: NativeStorage, velocityShape: Shape, velocityStride: Stride,
         lr: number, beta: number,
     ) => void;
+    softmax: (out: NativeStorage, outShape: Shape, outStride: Stride, input: NativeStorage, inShape: Shape, inStride: Stride, dim: number) => void;
+    softmaxBackward: (out: NativeStorage, outShape: Shape, outStride: Stride, softmax: NativeStorage, softmaxShape: Shape, softmaxStride: Stride, grad: NativeStorage, gradShape: Shape, gradStride: Stride, dim: number) => void;
+    logSoftmax: (out: NativeStorage, outShape: Shape, outStride: Stride, input: NativeStorage, inShape: Shape, inStride: Stride, dim: number) => void;
+    logSoftmaxBackward: (out: NativeStorage, outShape: Shape, outStride: Stride, logSoftmax: NativeStorage, logSoftmaxShape: Shape, logSoftmaxStride: Stride, grad: NativeStorage, gradShape: Shape, gradStride: Stride, dim: number) => void;
+    softmaxCrossEntropy: (loss: NativeStorage, lossShape: Shape, lossStride: Stride, softmax: NativeStorage, softmaxShape: Shape, softmaxStride: Stride, logits: NativeStorage, logitsShape: Shape, logitsStride: Stride, target: NativeStorage, targetShape: Shape, targetStride: Stride, dim: number) => void;
+    softmaxCrossEntropyBackward: (gradLogits: NativeStorage, gradLogitsShape: Shape, gradLogitsStride: Stride, softmax: NativeStorage, softmaxShape: Shape, softmaxStride: Stride, target: NativeStorage, targetShape: Shape, targetStride: Stride, dim: number) => void;
+    reluBackward: (out: NativeStorage, outShape: Shape, outStride: Stride, grad: NativeStorage, gradShape: Shape, gradStride: Stride, input: NativeStorage, inShape: Shape, inStride: Stride) => void;
+    sigmoidBackward: (out: NativeStorage, outShape: Shape, outStride: Stride, grad: NativeStorage, gradShape: Shape, gradStride: Stride, output: NativeStorage, outputShape: Shape, outputStride: Stride) => void;
+    expand: (out: NativeStorage, outShape: Shape, outStride: Stride, input: NativeStorage, inShape: Shape, inStride: Stride) => void;
+    biasAct: (out: NativeStorage, outShape: Shape, outStride: Stride, input: NativeStorage, inShape: Shape, inStride: Stride, bias: NativeStorage, biasShape: Shape, biasStride: Stride, act: number) => void;
+    biasActBackward: (gradInput: NativeStorage, gradInputShape: Shape, gradInputStride: Stride, gradBias: NativeStorage, gradBiasShape: Shape, gradBiasStride: Stride, grad: NativeStorage, gradShape: Shape, gradStride: Stride, saved: NativeStorage, savedShape: Shape, savedStride: Stride, bias: NativeStorage, biasShape: Shape, biasStride: Stride, act: number) => void;
+    layerNorm: (out: NativeStorage, outShape: Shape, outStride: Stride, mean: NativeStorage, meanShape: Shape, meanStride: Stride, rstd: NativeStorage, rstdShape: Shape, rstdStride: Stride, input: NativeStorage, inShape: Shape, inStride: Stride, weight: NativeStorage, weightShape: Shape, weightStride: Stride, bias: NativeStorage, biasShape: Shape, biasStride: Stride, eps: number) => void;
+    layerNormBackward: (gradInput: NativeStorage, gradInputShape: Shape, gradInputStride: Stride, gradWeight: NativeStorage, gradWeightShape: Shape, gradWeightStride: Stride, gradBias: NativeStorage, gradBiasShape: Shape, gradBiasStride: Stride, grad: NativeStorage, gradShape: Shape, gradStride: Stride, input: NativeStorage, inShape: Shape, inStride: Stride, mean: NativeStorage, meanShape: Shape, meanStride: Stride, rstd: NativeStorage, rstdShape: Shape, rstdStride: Stride, weight: NativeStorage, weightShape: Shape, weightStride: Stride) => void;
+    maxPool2d: (out: NativeStorage, outShape: Shape, outStride: Stride, input: NativeStorage, inShape: Shape, inStride: Stride, kh: number, kw: number) => void;
+    maxPool2dBackward: (gradInput: NativeStorage, gradInputShape: Shape, gradInputStride: Stride, grad: NativeStorage, gradShape: Shape, gradStride: Stride, input: NativeStorage, inShape: Shape, inStride: Stride, output: NativeStorage, outputShape: Shape, outputStride: Stride, kh: number, kw: number) => void;
+    avgPool2d: (out: NativeStorage, outShape: Shape, outStride: Stride, input: NativeStorage, inShape: Shape, inStride: Stride, kh: number, kw: number) => void;
+    avgPool2dBackward: (gradInput: NativeStorage, gradInputShape: Shape, gradInputStride: Stride, grad: NativeStorage, gradShape: Shape, gradStride: Stride, kh: number, kw: number) => void;
+    uniform: (storage: NativeStorage, low: number, high: number) => void;
 };
 
 // Missing .node means every caller stays on the TypeScript loops.
