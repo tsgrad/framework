@@ -1,10 +1,8 @@
-import { Variable } from "./autodiff.js";
-import { Queue } from "./datastructures.js";
+import { getBackend } from "./backend/index.js";
 import { Parameter } from "./module.js";
-import { native, type NativeStorage } from "./native.js";
 import { Scalar } from "./scalar.js";
 import { Tensor } from "./tensor.js";
-import { readStorage, TensorBuffer, writeStorage } from "./tensor_data.js";
+import { TensorBuffer } from "./tensor_data.js";
 
 export abstract class Optimizer{
     parameters: Parameter[];
@@ -47,19 +45,11 @@ export class SGD extends Optimizer{
             }
             else if (p.value instanceof Tensor) {
                 if (p.value.grad !== undefined) {
-                    if (native) {
-                        native.sgd(
-                            p.value.data._storage as NativeStorage, p.value.data._shape, p.value.data._stride,
-                            p.value.grad.data._storage as NativeStorage, p.value.grad.data._shape, p.value.grad.data._stride,
-                            this.lr,
-                        );
-                    } else {
-                        const values = readStorage(p.value.data._storage);
-                        const grads = readStorage(p.value.grad.data._storage);
-                        for (let i = 0; i < values.length; i++)
-                            values[i] -= this.lr * grads[i];
-                        writeStorage(p.value.data._storage, values);
-                    }
+                    getBackend().sgd(
+                        p.value.data._storage, p.value.data._shape, p.value.data._stride,
+                        p.value.grad.data._storage, p.value.grad.data._shape, p.value.grad.data._stride,
+                        this.lr,
+                    );
                 }
             }
         }
@@ -112,33 +102,18 @@ export class SGDMomentum extends Optimizer{
                 if (p.value.grad !== undefined) {
                     let velocity = this.prev.get(p);
                     if (velocity === undefined || typeof velocity === "number") {
-                        velocity = native
-                            ? native.alloc(p.value.data.size, 0)
-                            : new Float32Array(p.value.data.size);
+                        velocity = getBackend().alloc(p.value.data.size, 0);
                         this.prev.set(p, velocity);
                     }
 
-                    if (native) {
-                        const buffer = velocity as NativeStorage;
-                        const shape = p.value.data._shape;
-                        const stride = p.value.data._stride;
-                        native.sgdMomentum(
-                            p.value.data._storage as NativeStorage, shape, stride,
-                            p.value.grad.data._storage as NativeStorage, p.value.grad.data._shape, p.value.grad.data._stride,
-                            buffer, shape, stride,
-                            this.lr, this.beta,
-                        );
-                    } else {
-                        const values = readStorage(p.value.data._storage);
-                        const grads = readStorage(p.value.grad.data._storage);
-                        const oldVelocity = velocity as Float32Array;
-                        for (let i = 0; i < values.length; i++){
-                            const next = this.beta * oldVelocity[i] + (1 - this.beta) * grads[i];
-                            values[i] -= this.lr * next;
-                            oldVelocity[i] = next;
-                        }
-                        writeStorage(p.value.data._storage, values);
-                    }
+                    const shape = p.value.data._shape;
+                    const stride = p.value.data._stride;
+                    getBackend().sgdMomentum(
+                        p.value.data._storage, shape, stride,
+                        p.value.grad.data._storage, p.value.grad.data._shape, p.value.grad.data._stride,
+                        velocity, shape, stride,
+                        this.lr, this.beta,
+                    );
                 }
             }
         }

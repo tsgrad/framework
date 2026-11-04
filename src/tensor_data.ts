@@ -1,12 +1,13 @@
 import { zipWith, sum, mul, max, prod } from "./operators.js";
-import { native, type NativeStorage } from "./native.js";
+import { getBackend } from "./backend/index.js";
+import type { BackendStorage } from "./backend/device_backend.js";
 
 export type OutIndex = number[];
 export type Shape = number[];
 export type Stride = number[];
 export type Index = number[];
 export type Storage = Float32Array;
-export type TensorBuffer = Float32Array | NativeStorage;
+export type TensorBuffer = BackendStorage;
 
 export type UserShape = number[];
 export type UserStrides = number[];
@@ -61,20 +62,17 @@ export function shapeBroadcast(shape1: UserShape, shape2: UserShape): UserShape{
 }
 
 export function readStorage(storage: TensorBuffer): Float32Array {
-    if (storage instanceof Float32Array) return storage;
-    if (!native) throw "native storage requires the addon";
-    return native.copyToHost(storage);
+    return getBackend().copyToHost(storage);
+}
+
+export function readStorageAsync(storage: TensorBuffer): Promise<Float32Array> {
+    return getBackend().copyToHostAsync(storage);
 }
 
 export function writeStorage(storage: TensorBuffer, values: ArrayLike<number>): void {
     const src = values instanceof Float32Array ? values : Float32Array.from(values);
-    if (storage instanceof Float32Array) {
-        if (src.length !== storage.length) throw "writeStorage length does not match storage";
-        storage.set(src);
-        return;
-    }
-    if (!native) throw "native storage requires the addon";
-    native.copyFromHost(storage, src);
+    const backend = getBackend();
+    backend.copyFromHost(storage, src);
 }
 
 export class TensorData{
@@ -96,19 +94,16 @@ export class TensorData{
         this.size = prod(shape);
         this.shape = shape;
 
-        if (native) {
-            if (storage instanceof Float32Array) {
-                if (storage.length !== this.size) throw "_storage.length not equal to this.size";
-                const handle = native.alloc(this.size, 0);
-                if (this.size > 0) native.copyFromHost(handle, storage);
-                this._storage = handle;
-            } else {
-                if (retain) native.retain(storage);
-                this._storage = storage;
-            }
-        } else {
-            if (!(storage instanceof Float32Array)) throw "native storage requires the addon";
+        const backend = getBackend();
+        if (storage instanceof Float32Array && backend.kind !== 'cpu') {
             if (storage.length !== this.size) throw "_storage.length not equal to this.size";
+            const handle = backend.empty(this.size);
+            if (this.size > 0) backend.copyFromHost(handle, storage);
+            this._storage = handle;
+        } else {
+            if (!backend.isStorage(storage)) throw new Error(`Storage does not belong to the active ${backend.kind} backend`);
+            if (storage instanceof Float32Array && storage.length !== this.size) throw "_storage.length not equal to this.size";
+            if (retain) backend.retain(storage);
             this._storage = storage;
         }
     }
@@ -119,27 +114,18 @@ export class TensorData{
 
     static fill(shape: Shape, num: number = 0): TensorData{
         let size = prod(shape);
-        if (native) {
-            return new TensorData(native.alloc(size, num), shape, TensorData.calculateStrides(shape));
-        }
-        const storage = new Float32Array(new SharedArrayBuffer(size * Float32Array.BYTES_PER_ELEMENT));
-        storage.fill(num);
-        return new TensorData(storage, shape, TensorData.calculateStrides(shape));
+        return new TensorData(getBackend().alloc(size, num), shape, TensorData.calculateStrides(shape));
     }
 
     static empty(shape: Shape): TensorData{
         let size = prod(shape);
-        if (native) {
-            return new TensorData(native.empty(size), shape, TensorData.calculateStrides(shape));
-        }
-        const storage = new Float32Array(new SharedArrayBuffer(size * Float32Array.BYTES_PER_ELEMENT));
-        return new TensorData(storage, shape, TensorData.calculateStrides(shape));
+        return new TensorData(getBackend().empty(size), shape, TensorData.calculateStrides(shape));
     }
 
     release(): void {
         if (this._released) return;
         this._released = true;
-        if (native && !(this._storage instanceof Float32Array)) native.release(this._storage);
+        getBackend().release(this._storage);
     }
 
     static calculateStrides(shape: Shape): Stride{

@@ -474,20 +474,18 @@ export class Conv2d extends TensorFunction{
     }
 }
 
-export class Max extends TensorFunction{
-    static forward(ctx: Context, input: Tensor, dim: Tensor): Tensor{
-        const d = dim.item();
-        ctx.saveForBackward(input, dim);
-        return new Tensor(max(input.data, d));
-    }
+export function Max(dim: number): typeof TensorFunction {
+    return class extends TensorFunction {
+        static forward(ctx: Context, input: Tensor): Tensor {
+            ctx.saveForBackward(input);
+            return new Tensor(max(input.data, dim));
+        }
 
-    static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
-        let [input, dim] = ctx.savedValues;
-        const d = dim.item();
-
-        //                                          Dim has no derivative so just return a tensor with [0]
-        return [argmax(input, d).mul(gradOutput), new Tensor(TensorData.fill([1], 0))];
-    }
+        static backward(ctx: Context, gradOutput: Tensor): Tensor[] {
+            const [input] = ctx.savedValues;
+            return [argmax(input, dim).mul(gradOutput)];
+        }
+    };
 }
 
 export class ToContiguous extends TensorFunction {

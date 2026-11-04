@@ -1,16 +1,8 @@
-import { createRequire } from 'node:module';
-import { existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import type { Shape, Stride } from './tensor_data.js';
 
 export interface NativeStorage {
     readonly __nativeStorage: unique symbol;
 }
-
-const require = createRequire(import.meta.url);
-
-// CMake will write this path
-const addonPath = fileURLToPath(new URL('../backend/build/Release/tsgrad_native.node', import.meta.url));
 
 export type MapNative = (
     out: NativeStorage, outShape: Shape, outStride: Stride,
@@ -66,6 +58,7 @@ export type NativeAddon = {
     copyToHost: (storage: NativeStorage) => Float32Array;
     copyFromHost: (storage: NativeStorage, values: Float32Array) => void;
     synchronize: () => void;
+    backendInfo?: () => { kind: 'cuda' | 'cpu' };
     sgd: (
         param: NativeStorage, shape: Shape, stride: Stride,
         grad: NativeStorage, gradShape: Shape, gradStride: Stride,
@@ -79,7 +72,31 @@ export type NativeAddon = {
     ) => void;
 };
 
-// Missing .node means every caller stays on the TypeScript loops.
-export const native: NativeAddon | null = existsSync(addonPath)
-    ? require(addonPath) as NativeAddon
-    : null;
+// Set by initBackend(). Keeping this named export preserves the low-level
+// escape hatch used by native-specific tests without importing Node built-ins
+// into browser bundles at module evaluation time.
+export let native: NativeAddon | null = null;
+
+export async function loadNativeAddon(): Promise<NativeAddon | null> {
+    if (native) return native;
+    if (typeof process === 'undefined' || !process.versions?.node) return null;
+
+    const moduleName = 'node:module';
+    const fsName = 'node:fs';
+    const urlName = 'node:url';
+    const [{ createRequire }, { existsSync }, { fileURLToPath }] = await Promise.all([
+        import(/* @vite-ignore */ moduleName) as Promise<typeof import('node:module')>,
+        import(/* @vite-ignore */ fsName) as Promise<typeof import('node:fs')>,
+        import(/* @vite-ignore */ urlName) as Promise<typeof import('node:url')>,
+    ]);
+    const addonRelativePath = ['..', 'backend', 'build', 'Release', 'tsgrad_native.node'].join('/');
+    const addonPath = fileURLToPath(new URL(addonRelativePath, import.meta.url));
+    if (!existsSync(addonPath)) return null;
+    try {
+        native = createRequire(import.meta.url)(addonPath) as NativeAddon;
+    } catch (error) {
+        if (process.env?.TSGRAD_DEBUG_BACKEND) console.warn('Unable to load native tensor backend', error);
+        return null;
+    }
+    return native;
+}

@@ -1,6 +1,7 @@
 import { datasets } from "../src/datasets.js";
 import { Linear, Network, TensorTrain } from "./run_tensor.js";
 import { destroyPool } from "../src/fast_ops.js";
+import { initBackend } from "../src/backend/index.js";
 
 
 export class Network1 extends Network{
@@ -40,7 +41,7 @@ export class NetworkMultithreaded extends Network{
 }
 
 // Test 1
-export function test1(): void{
+export async function test1(): Promise<void>{
     console.log("Test 1");
     let PTS = 50;
     let RATE = 0.5;
@@ -48,10 +49,10 @@ export function test1(): void{
 
     let tensorTrain = new TensorTrain();
     tensorTrain.model = new NetworkMultithreaded();
-    tensorTrain.train(data, RATE, 100);
+    await tensorTrain.train(data, RATE, 100);
 }
 
-export function test6(): void{
+export async function test6(): Promise<void>{
     console.log("Test 6");
     let PTS = 1000;
     let RATE = 0.5;
@@ -59,11 +60,12 @@ export function test6(): void{
 
     let tensorTrain = new TensorTrain();
     tensorTrain.model = new Network6();
-    tensorTrain.train(data, RATE, 100);
+    await tensorTrain.train(data, RATE, 100);
 }
 
+await initBackend({ backend: "auto" });
 try {
-    test1();
+    await test1();
 } finally {
     destroyPool();
 }

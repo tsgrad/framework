@@ -1,7 +1,8 @@
 import { randomFloat } from "../src/helperfunctions.js"
 import { Module, Parameter } from "../src/module.js"
 import { Tensor } from "../src/tensor.js";
-import { readStorage, Shape, TensorData, writeStorage } from "../src/tensor_data.js"
+import { readStorageAsync, Shape, TensorData, writeStorage } from "../src/tensor_data.js"
+import { initBackend } from "../src/backend/index.js";
 import * as operators from "../src/operators.js"
 import { Graph } from "../src/datasets.js";
 import { Optimizer, SGD, SGDMomentum } from "../src/optim.js";
@@ -225,7 +226,7 @@ export class ImageTrain{
         return res;
     }
 
-    private evaluate(data: ImageData): number {
+    private async evaluate(data: ImageData): Promise<number> {
         const [images, labels] = data;
         let correct = 0;
         this.model.eval();
@@ -235,7 +236,7 @@ export class ImageTrain{
             const batchSize = imageBatch.length;
             const output = this.model.forward(this.imagesToTensor(imageBatch)).detach();
 
-            const scores = readStorage(output.data._storage);
+            const scores = await readStorageAsync(output.data._storage);
             for (let i = 0; i < batchSize; i++) {
                 let predicted = 0;
                 for (let j = 1; j < C; j++) {
@@ -251,7 +252,7 @@ export class ImageTrain{
         return correct;
     }
 
-    train(dataTrain: ImageData, dataVal: ImageData, learningRate: number, maxEpochs: number = 500, logFn: Function = defaultLogFn): void{
+    async train(dataTrain: ImageData, dataVal: ImageData, learningRate: number, maxEpochs: number = 500, logFn: Function = defaultLogFn): Promise<void>{
         const [trainImages, trainLabels] = dataTrain;
         if (trainImages.length !== trainLabels.length) throw "Training image and label counts differ";
         
@@ -283,12 +284,13 @@ export class ImageTrain{
                 loss.backward();
                 this.optim.step();
 
-                totalLoss += loss.item();
-                losses.push(loss.item());
+                const lossValue = await loss.itemAsync();
+                totalLoss += lossValue;
+                losses.push(lossValue);
             }
 
             if (epoch % 1 === 0 || epoch == maxEpochs){
-                const correct = this.evaluate(dataVal);
+                const correct = await this.evaluate(dataVal);
                 logFn(epoch, totalLoss, correct, dataVal[0].length);
             }
         }
@@ -301,13 +303,14 @@ export class ImageTrain{
 // Actual testing down here
 import { fileURLToPath } from "node:url";
 import { loadMnist } from "./mnist_data.js";
+await initBackend({ backend: "auto" });
 const dataDirectory = fileURLToPath(new URL("./data/mnist/", import.meta.url));
 const dataTrain = await loadMnist(dataDirectory, "train", 0, 500);
 const dataVal = await loadMnist(dataDirectory, "train", 10000, 500);
 
 const trainer = new ImageTrain();
 try{
-    trainer.train(dataTrain, dataVal, 0.01, 10);
+    await trainer.train(dataTrain, dataVal, 0.01, 10);
 }
 finally{
     destroyPool();

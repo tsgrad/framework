@@ -1,7 +1,7 @@
 import { randomFloat } from "../src/helperfunctions.js"
 import { Module, Parameter } from "../src/module.js"
 import { Tensor } from "../src/tensor.js";
-import { readStorage, Shape, TensorData, writeStorage } from "../src/tensor_data.js"
+import { readStorageAsync, Shape, TensorData, writeStorage } from "../src/tensor_data.js"
 import * as operators from "../src/operators.js"
 import { Graph } from "../src/datasets.js";
 import { Optimizer, SGD, SGDMomentum } from "../src/optim.js";
@@ -126,7 +126,7 @@ export class TensorTrain{
         return this.model.forward(new Tensor(sharedTensorData(x.flat(), [x.length, x[0].length])));
     }
 
-    train(data: Graph, learningRate: number, maxEpochs: number = 500, logFn: Function = defaultLogFn): void{
+    async train(data: Graph, learningRate: number, maxEpochs: number = 500, logFn: Function = defaultLogFn): Promise<void>{
         this.optim = new SGDMomentum(this.model.parameters(), learningRate);
         this.learningRate = learningRate;
         this.maxEpochs = maxEpochs;
@@ -148,13 +148,13 @@ export class TensorTrain{
             // backpropagate
             (loss.div(data.n)).sum(0).view(1).backward();
             
-            totalLoss = readStorage(loss.sum(0).view(1).data._storage)[0];
+            totalLoss = (await readStorageAsync(loss.sum(0).view(1).data._storage))[0]!;
             losses.push(totalLoss);
 
             this.optim.step();
 
             if (epoch % 10 === 0 || epoch == maxEpochs){
-                let correct: number = readStorage((out.detach().gt(0.5).eq(y)).sum(0).data._storage)[0];
+                let correct: number = (await readStorageAsync((out.detach().gt(0.5).eq(y)).sum(0).data._storage))[0]!;
                 logFn(epoch, totalLoss, correct, losses);
             }
         }

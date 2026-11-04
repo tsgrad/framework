@@ -1,8 +1,7 @@
 import * as operators from './operators.js';
-import { tensorMap as slowMap, tensorReduce as slowReduce, tensorZip as slowZip } from './tensor_ops.js';
-import { fastMatMul, fastConv1d, fastConv2d } from './fast_ops.js';
-import { native, type NativeStorage } from './native.js';
-import type { Shape, Storage, Stride, TensorBuffer } from './tensor_data.js';
+import { getBackend } from './backend/index.js';
+import type { BinaryOp, ReduceOp, UnaryOp } from './backend/device_backend.js';
+import type { Shape, Stride, TensorBuffer } from './tensor_data.js';
 
 type MapCall = (
     out: TensorBuffer, outShape: Shape, outStride: Stride,
@@ -22,43 +21,48 @@ type ReduceCall = (
 ) => void;
 
 
-// Same signatures as tensor_ops.ts / fast_ops.ts, so tensor_functions.ts can
-// import these names instead. An unknown operator, or a missing .node file,
-// keeps the existing TypeScript implementation.
+function unaryName(func: (x: number) => number): UnaryOp {
+    if (func === operators.neg) return 'neg';
+    if (func === operators.inv) return 'inv';
+    if (func === operators.sigmoid) return 'sigmoid';
+    if (func === operators.relu) return 'relu';
+    if (func === operators.log) return 'log';
+    if (func === operators.exp) return 'exp';
+    if (func === operators.id) return 'id';
+    throw new Error(`Unsupported unary tensor operator: ${func.name}`);
+}
 
 export function tensorMap(func: (x: number) => number): MapCall {
-    if (native) {
-        if (func === operators.neg) return native.mapNeg as MapCall;
-        if (func === operators.inv) return native.mapInv as MapCall;
-        if (func === operators.sigmoid) return native.mapSigmoid as MapCall;
-        if (func === operators.relu) return native.mapRelu as MapCall;
-        if (func === operators.log) return native.mapLog as MapCall;
-        if (func === operators.exp) return native.mapExp as MapCall;
-        if (func === operators.id) return native.mapId as MapCall;
-    }
-    return slowMap(func) as MapCall;
+    const op = unaryName(func);
+    return (out, outShape, outStride, input, inShape, inStride) =>
+        getBackend().map(op, out, outShape, outStride, input, inShape, inStride);
+}
+
+function binaryName(func: (x: number, y: number) => number): BinaryOp {
+    if (func === operators.add) return 'add';
+    if (func === operators.sub) return 'sub';
+    if (func === operators.mul) return 'mul';
+    if (func === operators.div) return 'div';
+    if (func === operators.lt) return 'lt';
+    if (func === operators.eq) return 'eq';
+    if (func === operators.isClose) return 'isClose';
+    throw new Error(`Unsupported binary tensor operator: ${func.name}`);
 }
 
 export function tensorZip(func: (x: number, y: number) => number): ZipCall {
-    if (native) {
-        if (func === operators.add) return native.zipAdd as ZipCall;
-        if (func === operators.sub) return native.zipSub as ZipCall;
-        if (func === operators.mul) return native.zipMul as ZipCall;
-        if (func === operators.div) return native.zipDiv as ZipCall;
-        if (func === operators.lt) return native.zipLt as ZipCall;
-        if (func === operators.eq) return native.zipEq as ZipCall;
-        if (func === operators.isClose) return native.zipIsClose as ZipCall;
-    }
-    return slowZip(func) as ZipCall;
+    const op = binaryName(func);
+    return (out, outShape, outStride, a, aShape, aStride, b, bShape, bStride) =>
+        getBackend().zip(op, out, outShape, outStride, a, aShape, aStride, b, bShape, bStride);
 }
 
 export function tensorReduce(func: (x: number, y: number) => number, base: number): ReduceCall {
-    if (native) {
-        if (func === operators.max && base === -Infinity) return native.reduceMax as ReduceCall;
-        if (func === operators.add && base === 0) return native.reduceSum as ReduceCall;
-        if (func === operators.mul && base === 1) return native.reduceProd as ReduceCall;
-    }
-    return slowReduce(func, base) as ReduceCall;
+    let op: ReduceOp;
+    if (func === operators.max && base === -Infinity) op = 'max';
+    else if (func === operators.add && base === 0) op = 'sum';
+    else if (func === operators.mul && base === 1) op = 'prod';
+    else throw new Error(`Unsupported tensor reduction: ${func.name} with base ${base}`);
+    return (out, outShape, outStride, input, inShape, inStride, dim) =>
+        getBackend().reduce(op, out, outShape, outStride, input, inShape, inStride, dim);
 }
 
 export function matMul(
@@ -66,11 +70,7 @@ export function matMul(
     aStorage: TensorBuffer, aShape: Shape, aStride: Stride,
     bStorage: TensorBuffer, bShape: Shape, bStride: Stride,
 ): void {
-    if (!native) {
-        fastMatMul(out as Storage, outShape, outStride, aStorage as Storage, aShape, aStride, bStorage as Storage, bShape, bStride);
-        return;
-    }
-    native.matmul(out as NativeStorage, outShape, outStride, aStorage as NativeStorage, aShape, aStride, bStorage as NativeStorage, bShape, bStride);
+    getBackend().matmul(out, outShape, outStride, aStorage, aShape, aStride, bStorage, bShape, bStride);
 }
 
 export function tensorConv1d(
@@ -79,11 +79,7 @@ export function tensorConv1d(
     weight: TensorBuffer, weightShape: Shape, weightStride: Stride,
     reverse: boolean,
 ): void {
-    if (!native) {
-        fastConv1d(out as Storage, outShape, outStride, input as Storage, inShape, inStride, weight as Storage, weightShape, weightStride, reverse);
-        return;
-    }
-    native.conv1d(out as NativeStorage, outShape, outStride, input as NativeStorage, inShape, inStride, weight as NativeStorage, weightShape, weightStride, reverse);
+    getBackend().conv1d(out, outShape, outStride, input, inShape, inStride, weight, weightShape, weightStride, reverse);
 }
 
 export function tensorConv2d(
@@ -92,9 +88,5 @@ export function tensorConv2d(
     weight: TensorBuffer, weightShape: Shape, weightStride: Stride,
     reverse: boolean,
 ): void {
-    if (!native) {
-        fastConv2d(out as Storage, outShape, outStride, input as Storage, inShape, inStride, weight as Storage, weightShape, weightStride, reverse);
-        return;
-    }
-    native.conv2d(out as NativeStorage, outShape, outStride, input as NativeStorage, inShape, inStride, weight as NativeStorage, weightShape, weightStride, reverse);
+    getBackend().conv2d(out, outShape, outStride, input, inShape, inStride, weight, weightShape, weightStride, reverse);
 }

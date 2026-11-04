@@ -10,7 +10,9 @@ import { Network, ScalarTrain } from "../run_scalar.js";
 import { animate, plotOut } from "./plots.js";
 import { Network1, Network2, Network3, Network6} from "../test_scalar.js"
 import { SGDMomentum } from "../../src/optim.js";
+import { initBackend } from "../../src/backend/index.js";
 
+await initBackend({ backend: "auto" });
 
 const plotElement = document.querySelector<HTMLDivElement>("#plot");
 const exportButton =

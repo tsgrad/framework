@@ -1,6 +1,6 @@
 import { backpropagate, Context, inBackward, Variable } from "./autodiff.js";
-import { readStorage, TensorData, UserShape, Shape } from "./tensor_data.js";
-import { native } from "./native.js";
+import { readStorage, readStorageAsync, TensorData, UserShape, Shape } from "./tensor_data.js";
+import { getBackend } from "./backend/index.js";
 import { tensorMap, tensorZip } from "./native_ops.js";
 import * as operators from "./operators.js";
 import { Add, TensorFunction, Neg, Mul, Inv, LT, EQ, IsClose, Sigmoid, ReLU, Log, Exp, Sum, Permute, ToContiguous, View, MatMul, Conv1d, Conv2d, Max, Sub, Div } from "./tensor_functions.js";
@@ -71,6 +71,16 @@ export class Tensor implements Variable{
         return readStorage(this.data._storage)[0];
     }
 
+    async itemAsync(): Promise<number> {
+        if (this.data.size !== 1)
+            throw "itemAsync() called on tensor of size " + this.data.size;
+        return (await readStorageAsync(this.data._storage))[0]!;
+    }
+
+    toFloat32(): Promise<Float32Array> {
+        return readStorageAsync(this.data._storage);
+    }
+
     _ensureTensor(x: Tensor | number){
         if (x instanceof Tensor)
             return x;
@@ -129,12 +139,7 @@ export class Tensor implements Variable{
     }
 
     fill_(value: number): Tensor {
-        if (this.data._storage instanceof Float32Array) {
-            this.data._storage.fill(value);
-            return this;
-        }
-        if (!native) throw "native storage requires the addon";
-        native.fill(this.data._storage, value);
+        getBackend().fill(this.data._storage, value);
         return this;
     }
 
@@ -191,8 +196,8 @@ export class Tensor implements Variable{
         return Tensor.apply(Conv2d, this, weight);
     }
 
-    max(dim: number | Tensor): Tensor{
-        return Tensor.apply(Max, this, this._ensureTensor(dim));
+    max(dim: number): Tensor{
+        return Tensor.apply(Max(dim), this);
     }
 
     sum(dim: number): Tensor{
