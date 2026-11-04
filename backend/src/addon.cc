@@ -91,6 +91,18 @@ void StorageWrap::recycle(Napi::Env env) {
     }
 }
 
+Napi::Value Synchronize(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+#if TSGRAD_HAS_CUDA
+    try {
+        tsgrad::cuda::Context::get().synchronize();
+    } catch (const std::exception& ex) {
+        throw Napi::Error::New(env, ex.what());
+    }
+#endif
+    return env.Undefined();
+}
+
 Napi::Object StorageWrap::Init(Napi::Env env, Napi::Object exports) {
     Napi::Function func = DefineClass(env, "NativeStorage", {});
     constructor = Napi::Persistent(func);
@@ -102,6 +114,7 @@ Napi::Object StorageWrap::Init(Napi::Env env, Napi::Object exports) {
     exports.Set("fill", Napi::Function::New(env, &StorageWrap::Fill));
     exports.Set("copyToHost", Napi::Function::New(env, &StorageWrap::CopyToHost));
     exports.Set("copyFromHost", Napi::Function::New(env, &StorageWrap::CopyFromHost));
+    exports.Set("synchronize", Napi::Function::New(env, Synchronize));
     return exports;
 }
 

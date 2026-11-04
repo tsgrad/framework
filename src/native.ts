@@ -65,6 +65,7 @@ export type NativeAddon = {
     fill: (storage: NativeStorage, value: number) => void;
     copyToHost: (storage: NativeStorage) => Float32Array;
     copyFromHost: (storage: NativeStorage, values: Float32Array) => void;
+    synchronize: () => void;
     sgd: (
         param: NativeStorage, shape: Shape, stride: Stride,
         grad: NativeStorage, gradShape: Shape, gradStride: Stride,

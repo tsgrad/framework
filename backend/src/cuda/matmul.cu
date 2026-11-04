@@ -23,7 +23,7 @@
 // Sequence, same as elementwise.cu:
 //   Context::get()
 //   cublas or matmul_kernel on View::data
-//   Context::synchronize()
+//   Context::checkLastError()
 
 namespace tsgrad::cuda {
 
@@ -310,7 +310,7 @@ void matmul(const View& out, const View& a, const View& b) {
         } else {
             launch_matmul(out, a, b, m, n, k, batch, stream);
         }
-        ctx.synchronize();
+        ctx.checkLastError();
         return;
     }
 
@@ -349,13 +349,13 @@ void matmul(const View& out, const View& a, const View& b) {
                 out.data, ldc, stride_c, batch
             );
         }
-        ctx.synchronize();
+        ctx.checkLastError();
         return;
     }
 
     check_output_disjoint(out, m, n, batch);
     launch_matmul(out, a, b, m, n, k, batch, stream);
-    ctx.synchronize();
+    ctx.checkLastError();
 }
 
 } // namespace tsgrad::cuda

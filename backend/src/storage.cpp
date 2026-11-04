@@ -78,10 +78,8 @@ void write_device(float* device, size_t numel, float fill) {
     if (fill == 0.0F) {
         check_cuda(cudaMemsetAsync(device, 0, bytes, stream), "cudaMemsetAsync");
     } else {
-        std::vector<float> tmp(numel, fill);
-        check_cuda(cudaMemcpyAsync(device, tmp.data(), bytes, cudaMemcpyHostToDevice, stream), "storage fill");
+        cuda::fill(device, numel, fill);
     }
-    ctx.synchronize();
 }
 #else
 std::vector<float> take_host(size_t numel) {
@@ -185,7 +183,6 @@ void Storage::copy_from_host(const float* src) {
     if (device_ == nullptr) throw std::runtime_error("copyFromHost on released storage");
     cuda::Context& ctx = cuda::Context::get();
     check_cuda(cudaMemcpyAsync(device_, src, numel_ * sizeof(float), cudaMemcpyHostToDevice, static_cast<cudaStream_t>(ctx.getStream())), "copyFromHost");
-    ctx.synchronize();
 #else
     if (host_.size() != numel_) throw std::runtime_error("copyFromHost on released storage");
     std::memcpy(host_.data(), src, numel_ * sizeof(float));

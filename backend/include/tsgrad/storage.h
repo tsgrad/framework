@@ -17,6 +17,8 @@
 //
 // Released blocks go back to a free list. cudaFree runs when that list is
 // torn down. A recycled block is left dirty unless initialize is set.
+// The next memset, fill, copy, or kernel is queued on the same stream, so it
+// runs after whatever still uses that pointer.
 namespace tsgrad {
 
 class Storage {

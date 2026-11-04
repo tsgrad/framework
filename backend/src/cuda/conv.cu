@@ -16,7 +16,7 @@
 // Sequence, same as elementwise.cu:
 //   Context::get()
 //   conv*_kernel<<<grid, block, 0, stream>>> on View::data
-//   Context::synchronize()
+//   Context::checkLastError()
 
 namespace tsgrad::cuda {
 
@@ -132,7 +132,7 @@ void conv1d(const View& out, const View& input, const View& weight, bool reverse
         reverse
     );
 
-    ctx.synchronize();
+    ctx.checkLastError();
 }
 
 void conv2d(const View& out, const View& input, const View& weight, bool reverse) {
@@ -175,7 +175,7 @@ void conv2d(const View& out, const View& input, const View& weight, bool reverse
         reverse
     );
 
-    ctx.synchronize();
+    ctx.checkLastError();
 }
 
 } // namespace tsgrad::cuda

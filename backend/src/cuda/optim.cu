@@ -33,7 +33,7 @@ void sgd(const View& param, const View& grad, float lr) {
     const int threads = 256;
     const int blocks = static_cast<int>((n + threads - 1) / threads);
     sgd_kernel<<<blocks, threads, 0, static_cast<cudaStream_t>(ctx.getStream())>>>(param.data, grad.data, n, lr);
-    ctx.synchronize();
+    ctx.checkLastError();
 }
 
 void sgd_momentum(const View& param, const View& grad, const View& velocity, float lr, float beta) {
@@ -49,7 +49,7 @@ void sgd_momentum(const View& param, const View& grad, const View& velocity, flo
     const int threads = 256;
     const int blocks = static_cast<int>((n + threads - 1) / threads);
     sgd_momentum_kernel<<<blocks, threads, 0, static_cast<cudaStream_t>(ctx.getStream())>>>(param.data, grad.data, velocity.data, n, lr, beta);
-    ctx.synchronize();
+    ctx.checkLastError();
 }
 
 } // namespace tsgrad::cuda

@@ -4,10 +4,10 @@
 #include <stdexcept>
 #include <string>
 
-// One process-wide device, stream, and cublas handle. elementwise.cu and
-// matmul.cu call Context::get() before a launch and Context::synchronize()
-// before returning to addon.cc, because the Float32Array must be filled when
-// the JS call ends. The cublas handle is bound to that stream.
+// One process-wide device, stream, and cublas handle. Launches queue on the
+// stream and return. copyToHost and synchronize wait, because that is when a
+// host read or an explicit flush must see finished work. The cublas handle is
+// bound to that stream.
 
 namespace tsgrad::cuda {
 namespace {
@@ -56,7 +56,18 @@ void* Context::getCublas(){
 }
 
 void Context::synchronize() {
-    cudaStreamSynchronize(static_cast<cudaStream_t>(stream_));
+    cudaError_t err = cudaStreamSynchronize(static_cast<cudaStream_t>(stream_));
+    if (err != cudaSuccess)
+        throw std::runtime_error(std::string("cudaStreamSynchronize: ") + cudaGetErrorString(err));
+    err = cudaGetLastError();
+    if (err != cudaSuccess)
+        throw std::runtime_error(std::string("CUDA: ") + cudaGetErrorString(err));
+}
+
+void Context::checkLastError() {
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess)
+        throw std::runtime_error(std::string("CUDA launch: ") + cudaGetErrorString(err));
 }
 
 int Context::device() const {

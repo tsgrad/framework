@@ -4,6 +4,7 @@
     #define TSGRAD_HAS_CUDA 0
 #endif
 
+#include <cstddef>
 #include <cstdint>
 
 // Host-side view of one tensor argument.
@@ -66,7 +67,8 @@ void conv2d(const View& out, const View& input, const View& weight, bool reverse
 
 // Same signatures as above. Defined in src/cuda/*.cu when TSGRAD_HAS_CUDA is set.
 // On a CUDA build View::data is already a device pointer. The .cu function
-// launches and synchronizes before it returns. It does not free data.
+// launches on the process-wide stream and returns without waiting. It does not
+// free data. copyToHost and synchronize wait.
 namespace cuda {
 
 class Context {
@@ -75,6 +77,7 @@ public:
     void* getStream();
     void* getCublas();
     void synchronize();
+    void checkLastError();
     int device() const;
 
 private:
@@ -117,6 +120,9 @@ void matmul(const View& out, const View& a, const View& b);
 
 void conv1d(const View& out, const View& input, const View& weight, bool reverse);
 void conv2d(const View& out, const View& input, const View& weight, bool reverse);
+
+// Non-zero storage fill. Queued on the process-wide stream. Does not wait.
+void fill(float* data, size_t numel, float value);
 
 } // namespace cuda
 } // namespace tsgrad

@@ -7,6 +7,24 @@
 #include <climits>
 
 namespace tsgrad::cuda{
+
+// Rank is at most 16. A kernel takes this by value, so the bytes travel with the launch.
+struct Layout {
+    int32_t shape[16];
+    int32_t stride[16];
+    int32_t rank;
+};
+
+inline Layout layout_from(const View& view) {
+    Layout layout{};
+    layout.rank = view.rank;
+    for (int32_t i = 0; i < view.rank && i < 16; i++) {
+        layout.shape[i] = view.shape[i];
+        layout.stride[i] = view.stride[i];
+    }
+    return layout;
+}
+
 __host__ __device__ inline long long index_to_position(const int32_t* index, const int32_t* stride, int32_t size){
     long long res = 0;
     for (int32_t i = 0; i < size; i++)

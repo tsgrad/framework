@@ -10,17 +10,16 @@
 // Those CPU functions pass the same host Views here.
 //
 // Each host function below is the same sequence:
-//   1. Context::get()            current device and stream
+//   1. Context::get()              current device and stream
 //   2. kernel<<<grid, block, 0, stream>>> on View::data, already device memory
-//   3. Context::synchronize()    the next copyToHost sees the result
+//   3. Context::checkLastError()   a bad launch is reported here; the stream is not waited on
 //
-// Shape and stride arrays are tiny and still copied per call. Do not free View::data.
+// Shape and stride ride along as a Layout argument. Do not free View::data.
 
 namespace tsgrad::cuda {
     
 template <float (*Func)(float)>
-__global__ void map_kernel(float* out, const int32_t* out_shape, const int32_t* out_stride, int32_t out_rank,
-    const float* in, const int32_t* in_shape, const int32_t* in_stride, int32_t in_rank, long long n) {
+__global__ void map_kernel(float* out, Layout out_layout, const float* in, Layout in_layout, long long n) {
     long long i = static_cast<long long>(blockIdx.x) * blockDim.x + threadIdx.x;
 
     if (i >= n) return;
@@ -28,11 +27,11 @@ __global__ void map_kernel(float* out, const int32_t* out_shape, const int32_t* 
     int32_t out_index[16];
     int32_t in_index[16];
 
-    position_to_index(i, out_shape, out_index, out_rank);
-    long long outPos = index_to_position(out_index, out_stride, out_rank);
+    position_to_index(i, out_layout.shape, out_index, out_layout.rank);
+    long long outPos = index_to_position(out_index, out_layout.stride, out_layout.rank);
 
-    broadcast_index(out_index, out_shape, out_rank, in_shape, in_index, in_rank);
-    long long inPos = index_to_position(in_index, in_stride, in_rank);
+    broadcast_index(out_index, out_layout.shape, out_layout.rank, in_layout.shape, in_index, in_layout.rank);
+    long long inPos = index_to_position(in_index, in_layout.stride, in_layout.rank);
 
     out[outPos] = Func(in[inPos]);
 }
@@ -47,9 +46,7 @@ __global__ void map_kernel_contiguous(float* out, const float* in, long long n){
 }
 
 template <float (*Func)(float, float)>
-__global__ void zip_kernel(float* out, const int32_t* out_shape, const int32_t* out_stride, int32_t out_rank,
-    const float* a, const int32_t* a_shape, const int32_t* a_stride, int32_t a_rank,
-    const float* b, const int32_t* b_shape, const int32_t* b_stride, int32_t b_rank, long long n) {
+__global__ void zip_kernel(float* out, Layout out_layout, const float* a, Layout a_layout, const float* b, Layout b_layout, long long n) {
     long long i = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (i >= n) return;
@@ -58,14 +55,14 @@ __global__ void zip_kernel(float* out, const int32_t* out_shape, const int32_t* 
     int32_t a_index[16];
     int32_t b_index[16];
 
-    position_to_index(i, out_shape, out_index, out_rank);
-    long long outPos = index_to_position(out_index, out_stride, out_rank);
+    position_to_index(i, out_layout.shape, out_index, out_layout.rank);
+    long long outPos = index_to_position(out_index, out_layout.stride, out_layout.rank);
 
-    broadcast_index(out_index, out_shape, out_rank, a_shape, a_index, a_rank);
-    long long aPos = index_to_position(a_index, a_stride, a_rank);
+    broadcast_index(out_index, out_layout.shape, out_layout.rank, a_layout.shape, a_index, a_layout.rank);
+    long long aPos = index_to_position(a_index, a_layout.stride, a_layout.rank);
 
-    broadcast_index(out_index, out_shape, out_rank, b_shape, b_index, b_rank);
-    long long bPos = index_to_position(b_index, b_stride, b_rank);
+    broadcast_index(out_index, out_layout.shape, out_layout.rank, b_layout.shape, b_index, b_layout.rank);
+    long long bPos = index_to_position(b_index, b_layout.stride, b_layout.rank);
 
     out[outPos] = Func(a[aPos], b[bPos]);
 }
@@ -80,34 +77,32 @@ __global__ void zip_kernel_contiguous(float* out, const float* a, const float* b
 }
 
 template <float (*Func)(float, float)>
-__global__ void reduce_kernel(float* out, const int32_t* out_shape, const int32_t* out_stride,
-    const float* in, const int32_t* in_shape, const int32_t* in_stride, int32_t rank, int32_t dim, float base, long long n) {
+__global__ void reduce_kernel(float* out, Layout out_layout, const float* in, Layout in_layout, int32_t dim, float base, long long n) {
     long long i = static_cast<long long>(blockIdx.x) * blockDim.x + threadIdx.x;
 
     if (i >= n) return;
 
-    int32_t dimSize = in_shape[dim];
+    const int32_t rank = in_layout.rank;
+    int32_t dimSize = in_layout.shape[dim];
     int32_t out_index[16];
 
-    position_to_index(i, out_shape, out_index, rank);
+    position_to_index(i, out_layout.shape, out_index, rank);
     int32_t temp = out_index[dim];
     float cur = base;
 
     for (int32_t j = 0; j < dimSize; j++){
         out_index[dim] = j;
-        cur = Func(cur, in[index_to_position(out_index, in_stride, rank)]);
+        cur = Func(cur, in[index_to_position(out_index, in_layout.stride, rank)]);
     }
 
     out_index[dim] = temp;
-    out[index_to_position(out_index, out_stride, rank)] = cur;
+    out[index_to_position(out_index, out_layout.stride, rank)] = cur;
 }
 
-int32_t* upload_i32(const int32_t* src, size_t bytes) {
-    if (bytes == 0) return nullptr;
-    int32_t* dst = nullptr;
-    cudaMalloc(&dst, bytes);
-    cudaMemcpy(dst, src, bytes, cudaMemcpyHostToDevice);
-    return dst;
+__global__ void fill_kernel(float* data, long long n, float value) {
+    long long i = static_cast<long long>(blockIdx.x) * blockDim.x + threadIdx.x;
+    if (i >= n) return;
+    data[i] = value;
 }
 
 template<float (*Func)(float)>
@@ -124,21 +119,12 @@ void map_op(const View& out, const View& in){
 
     if (is_contiguous(out) && is_contiguous(in) && shapesAreEqual(out.shape, in.shape, out.rank, in.rank)){
         map_kernel_contiguous<Func><<<blocks, threads, 0, static_cast<cudaStream_t>(ctx.getStream())>>>(out.data, in.data, outsize);
-        ctx.synchronize();
+        ctx.checkLastError();
         return;
     }
 
-    const size_t outotherbytes = static_cast<size_t>(out.rank) * sizeof(int32_t);
-    const size_t inotherbytes = static_cast<size_t>(in.rank) * sizeof(int32_t);
-    int32_t* outshape = upload_i32(out.shape, outotherbytes);
-    int32_t* outstride = upload_i32(out.stride, outotherbytes);
-    int32_t* inshape = upload_i32(in.shape, inotherbytes);
-    int32_t* instride = upload_i32(in.stride, inotherbytes);
-
-    map_kernel<Func><<<blocks, threads, 0, static_cast<cudaStream_t>(ctx.getStream())>>>(out.data, outshape, outstride, out.rank, in.data, inshape, instride, in.rank, outsize);
-
-    ctx.synchronize();
-    cudaFree(outshape); cudaFree(outstride); cudaFree(inshape); cudaFree(instride);
+    map_kernel<Func><<<blocks, threads, 0, static_cast<cudaStream_t>(ctx.getStream())>>>(out.data, layout_from(out), in.data, layout_from(in), outsize);
+    ctx.checkLastError();
 }
 
 void map_neg(const View& out, const View& in){ map_op<neg>(out, in); }
@@ -164,31 +150,20 @@ void zip_op(const View& out, const View& a, const View& b){
 
     if (is_contiguous(out) && is_contiguous(a) && is_contiguous(b) && shapesAreEqual(out.shape, a.shape, out.rank, a.rank) && shapesAreEqual(out.shape, b.shape, out.rank, b.rank)){
         zip_kernel_contiguous<Func><<<blocks, threads, 0, static_cast<cudaStream_t>(ctx.getStream())>>>(out.data, a.data, b.data, outsize);
-        ctx.synchronize();
+        ctx.checkLastError();
         return;
     }
 
     if (!is_broadcastable(out.shape, a.shape, out.rank, a.rank) || !is_broadcastable(out.shape, b.shape, out.rank, b.rank))
         throw std::runtime_error("zip_op received unbroadcastable shapes");
 
-    const size_t outotherbytes = static_cast<size_t>(out.rank) * sizeof(int32_t);
-    const size_t aotherbytes = static_cast<size_t>(a.rank) * sizeof(int32_t);
-    const size_t botherbytes = static_cast<size_t>(b.rank) * sizeof(int32_t);
-    int32_t* outshape = upload_i32(out.shape, outotherbytes);
-    int32_t* outstride = upload_i32(out.stride, outotherbytes);
-    int32_t* ashape = upload_i32(a.shape, aotherbytes);
-    int32_t* astride = upload_i32(a.stride, aotherbytes);
-    int32_t* bshape = upload_i32(b.shape, botherbytes);
-    int32_t* bstride = upload_i32(b.stride, botherbytes);
-
     zip_kernel<Func><<<blocks, threads, 0, static_cast<cudaStream_t>(ctx.getStream())>>>(
-        out.data, outshape, outstride, out.rank,
-        a.data, ashape, astride, a.rank,
-        b.data, bshape, bstride, b.rank, outsize
+        out.data, layout_from(out),
+        a.data, layout_from(a),
+        b.data, layout_from(b),
+        outsize
     );
-
-    ctx.synchronize();
-    cudaFree(outshape); cudaFree(outstride); cudaFree(ashape); cudaFree(astride); cudaFree(bshape); cudaFree(bstride);
+    ctx.checkLastError();
 }
 
 void zip_add(const View& out, const View& a, const View& b) { zip_op<add>(out, a, b); }
@@ -212,20 +187,21 @@ void reduce_op(const View& out, const View& in, int32_t dim, float base){
     long long outsize = prod(out.shape, out.rank);
     if (outsize == 0) return;
 
-    const size_t outotherbytes = static_cast<size_t>(out.rank) * sizeof(int32_t);
-    const size_t inotherbytes = static_cast<size_t>(in.rank) * sizeof(int32_t);
     int32_t threads = 256;
     int32_t blocks = static_cast<int32_t>((outsize + threads - 1) / threads);
 
-    int32_t* outshape = upload_i32(out.shape, outotherbytes);
-    int32_t* outstride = upload_i32(out.stride, outotherbytes);
-    int32_t* inshape = upload_i32(in.shape, inotherbytes);
-    int32_t* instride = upload_i32(in.stride, inotherbytes);
+    reduce_kernel<Func><<<blocks, threads, 0, static_cast<cudaStream_t>(ctx.getStream())>>>(out.data, layout_from(out), in.data, layout_from(in), dim, base, outsize);
+    ctx.checkLastError();
+}
 
-    reduce_kernel<Func><<<blocks, threads, 0, static_cast<cudaStream_t>(ctx.getStream())>>>(out.data, outshape, outstride, in.data, inshape, instride, in.rank, dim, base, outsize);
+void fill(float* data, size_t numel, float value) {
+    if (numel == 0 || data == nullptr) return;
 
-    ctx.synchronize();
-    cudaFree(outshape); cudaFree(outstride); cudaFree(inshape); cudaFree(instride);
+    Context& ctx = Context::get();
+    const int threads = 256;
+    const int blocks = static_cast<int>((numel + threads - 1) / threads);
+    fill_kernel<<<blocks, threads, 0, static_cast<cudaStream_t>(ctx.getStream())>>>(data, static_cast<long long>(numel), value);
+    ctx.checkLastError();
 }
 
 void reduce_max(const View& out, const View& in, int32_t dim) { reduce_op<max>(out, in, dim, -std::numeric_limits<float>::infinity()); }
