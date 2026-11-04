@@ -7,6 +7,33 @@ Inspired by [@srush_nlp](https://x.com/srush_nlp)'s [minitorch](https://github.c
   
 Built from scratch to learn how ml frameworks/models work.  
 
+## Tensor backends
+
+Initialize a backend before creating tensors:
+
+```typescript
+import { initBackend } from "./src/backend/index.js";
+
+await initBackend({ backend: "auto" });
+```
+
+`auto` prefers the native addon (CUDA when compiled with CUDA, otherwise native
+CPU), then WebGPU, then the TypeScript CPU backend. You can explicitly request
+`"cuda"`, `"native"`, `"webgpu"`, or `"cpu"`; unavailable explicit choices
+throw instead of silently changing backend.
+
+WebGPU works in browsers through `navigator.gpu` and in Node through the
+optional `webgpu` package. Tensor operations only enqueue GPU work. Reading
+data back is asynchronous:
+
+```typescript
+const values = await tensor.toFloat32();
+const scalar = await tensor.itemAsync();
+```
+
+Set `TSGRAD_BACKEND=webgpu` (or another backend name) to override `auto` in
+Node. `project/benchmark_backend.ts` times a synchronized matmul workload.
+
 ---
 
 ## What's implemented
