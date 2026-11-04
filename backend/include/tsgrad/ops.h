@@ -73,6 +73,7 @@ class Context {
 public:
     static Context& get();
     void* getStream();
+    void* getCublas();
     void synchronize();
     int device() const;
 
@@ -84,6 +85,7 @@ private:
 
     int device_;
     void* stream_; // cudaStream_t, stored without including cuda_runtime.h here
+    void* cublas_; // cublasHandle_t, stored without including cublas_v2.h here
 };
 
 void map_neg(const View& out, const View& in);
@@ -109,6 +111,8 @@ void reduce_max(const View& out, const View& in, int32_t dim);
 void reduce_sum(const View& out, const View& in, int32_t dim);
 void reduce_prod(const View& out, const View& in, int32_t dim);
 
+// Leading dimensions are a batch. A uniform stride goes to cuBLAS.
+// The stride kernel covers every other layout. CPU matmul is still rank 2.
 void matmul(const View& out, const View& a, const View& b);
 
 void conv1d(const View& out, const View& input, const View& weight, bool reverse);

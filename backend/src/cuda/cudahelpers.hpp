@@ -7,7 +7,7 @@
 #include <climits>
 
 namespace tsgrad::cuda{
-__device__ inline long long index_to_position(const int32_t* index, const int32_t* stride, int32_t size){
+__host__ __device__ inline long long index_to_position(const int32_t* index, const int32_t* stride, int32_t size){
     long long res = 0;
     for (int32_t i = 0; i < size; i++)
         res += static_cast<long long>(index[i]) * static_cast<long long>(stride[i]);
@@ -15,7 +15,7 @@ __device__ inline long long index_to_position(const int32_t* index, const int32_
     return res;
 }
 
-__device__ inline void position_to_index(long long ordinal, const int32_t* shape, int32_t* out_index, int32_t size){
+__host__ __device__ inline void position_to_index(long long ordinal, const int32_t* shape, int32_t* out_index, int32_t size){
     for (int32_t i = size - 1; i >= 0; i--){
         out_index[i] = ordinal % shape[i];
         ordinal /= shape[i];

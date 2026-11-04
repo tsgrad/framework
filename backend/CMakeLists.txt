@@ -122,7 +122,7 @@ if(TSGRAD_CUDA)
             src/cuda/optim.cu
         )
         set_target_properties(tsgrad_native PROPERTIES CUDA_ARCHITECTURES native)
-        target_link_libraries(tsgrad_native PRIVATE CUDA::cudart)
+        target_link_libraries(tsgrad_native PRIVATE CUDA::cudart CUDA::cublas)
         target_compile_definitions(tsgrad_native PRIVATE TSGRAD_HAS_CUDA)
     else()
         message(WARNING "nvcc was not found. The addon will contain the CPU entry points only. src/cuda/*.cu stays in the tree.")
