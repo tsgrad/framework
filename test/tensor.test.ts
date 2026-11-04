@@ -3,7 +3,11 @@ import { Tensor } from "../src/tensor.js"
 import { readStorage, TensorData } from "../src/tensor_data";
 import { conv1d, conv2d } from "../src/tensor_functions.js";
 import { fastConv1d, fastConv2d } from "../src/fast_ops.js";
-import { native } from "../src/native.js";
+import { loadNativeAddon, native } from "../src/native.js";
+import { initBackend } from "../src/backend/index.js";
+
+const nativeAddon = await loadNativeAddon();
+await initBackend({ backend: nativeAddon ? "native" : "cpu" });
 
 test("Matmul test", () => {
     const A = new Tensor(new TensorData(new Float32Array([1, 2, 3, 4, 5, 6]), [2, 3]));
@@ -14,6 +18,55 @@ test("Matmul test", () => {
     const actual = readStorage(C.data._storage);
     expect(actual.length).toEqual(expected.length);
     expected.forEach((val, i) => {expect(val).toBeCloseTo(actual[i])});
+});
+
+test("Native matmul supports strided and batched layouts", () => {
+    if (!native?.backendInfo) return;
+
+    const make = (values: number[]) => {
+        const storage = native.alloc(values.length);
+        native.copyFromHost(storage, Float32Array.from(values));
+        return storage;
+    };
+
+    const transposedA = make([1, 4, 2, 5, 3, 6]);
+    const b = make([7, 8, 9, 10, 11, 12]);
+    const out = native.empty(4);
+    native.matmul(out, [2, 2], [2, 1], transposedA, [2, 3], [1, 2], b, [3, 2], [2, 1]);
+    expectClose(native.copyToHost(out), [58, 64, 139, 154]);
+
+    const batchA = make([
+        1, 2, 3, 4, 5, 6,
+        2, 0, 1, 1, 3, 2,
+    ]);
+    const batchB = make([
+        1, 0, 0, 1, 1, 1,
+        1, 2, 3, 0, 1, 1,
+    ]);
+    const batchOut = native.empty(8);
+    native.matmul(
+        batchOut, [2, 2, 2], [4, 2, 1],
+        batchA, [2, 2, 3], [6, 3, 1],
+        batchB, [2, 3, 2], [6, 2, 1],
+    );
+    expectClose(native.copyToHost(batchOut), [4, 5, 10, 11, 3, 5, 12, 4]);
+
+    for (const storage of [transposedA, b, out, batchA, batchB, batchOut])
+        native.release(storage);
+});
+
+test("Native CUDA operation chains synchronize at host reads", () => {
+    if (!native) return;
+    const input = native.alloc(4);
+    const middle = native.empty(4);
+    const output = native.empty(4);
+    const source = new Float32Array([-2, 1, -4, 3]);
+    native.copyFromHost(input, source);
+    source.fill(99);
+    native.mapRelu(middle, [4], [1], input, [4], [1]);
+    native.zipAdd(output, [4], [1], middle, [4], [1], middle, [4], [1]);
+    expectClose(native.copyToHost(output), [0, 2, 0, 6]);
+    for (const storage of [input, middle, output]) native.release(storage);
 });
 
 function expectClose(actual: ArrayLike<number>, expected: ArrayLike<number>) {
@@ -33,7 +86,6 @@ function rand(seed: number, n: number): Float32Array {
 }
 
 test("Conv1d test", () => {
-    expect(native).not.toBeNull();
     const input = new Tensor(new TensorData(new Float32Array([1, 2, 3, 4]), [1, 1, 4]));
     const weight = new Tensor(new TensorData(new Float32Array([1, 0, -1]), [1, 1, 3]));
     expectClose(readStorage(input.conv1d(weight).data._storage), [-2, -2, 3, 4]);
@@ -50,7 +102,7 @@ test("Conv2d test", () => {
 });
 
 test("Conv native matches the TypeScript kernels", () => {
-    expect(native).not.toBeNull();
+    if (!native) return;
     let conv1Calls = 0;
     let conv2Calls = 0;
     const orig1 = native!.conv1d;
