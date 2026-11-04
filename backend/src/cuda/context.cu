@@ -12,6 +12,12 @@
 namespace tsgrad::cuda {
 namespace {
 
+void check_cuda(cudaError_t err, const char* what) {
+    if (err != cudaSuccess) {
+        throw std::runtime_error(std::string(what) + ": " + cudaGetErrorString(err));
+    }
+}
+
 void check_cublas(cublasStatus_t err, const char* what) {
     if (err != CUBLAS_STATUS_SUCCESS) {
         throw std::runtime_error(std::string(what) + ": " + cublasGetStatusString(err));
@@ -21,16 +27,31 @@ void check_cublas(cublasStatus_t err, const char* what) {
 }
 
 Context::Context() : device_(0), stream_(nullptr), cublas_(nullptr) {
-    cudaGetDevice(&device_);
+    check_cuda(cudaGetDevice(&device_), "cudaGetDevice");
     cudaStream_t stream = nullptr;
-    cudaStreamCreate(&stream);
+    check_cuda(cudaStreamCreate(&stream), "cudaStreamCreate");
     stream_ = stream;
 
     cublasHandle_t handle = nullptr;
-    check_cublas(cublasCreate(&handle), "cublasCreate");
+    const cublasStatus_t created = cublasCreate(&handle);
+    if (created != CUBLAS_STATUS_SUCCESS) {
+        cudaStreamDestroy(stream);
+        stream_ = nullptr;
+        check_cublas(created, "cublasCreate");
+    }
     cublas_ = handle;
-    check_cublas(cublasSetStream(handle, stream), "cublasSetStream");
-    check_cublas(cublasSetMathMode(handle, CUBLAS_PEDANTIC_MATH), "cublasSetMathMode");
+    try {
+        check_cublas(cublasSetStream(handle, stream), "cublasSetStream");
+        // Pedantic math preserves strict FP32 behavior. Applications that
+        // prefer Ampere TF32 throughput can make this a runtime option later.
+        check_cublas(cublasSetMathMode(handle, CUBLAS_PEDANTIC_MATH), "cublasSetMathMode");
+    } catch (...) {
+        cublasDestroy(handle);
+        cudaStreamDestroy(stream);
+        cublas_ = nullptr;
+        stream_ = nullptr;
+        throw;
+    }
 }
 
 Context::~Context() {

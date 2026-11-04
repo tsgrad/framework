@@ -328,6 +328,10 @@ void matmul(const View& out, const View& a, const View& b) {
         strides_ok = batch_stride(a.shape, a.stride, rank, stride_a)
             && batch_stride(b.shape, b.stride, rank, stride_b)
             && batch_stride(out.shape, out.stride, rank, stride_c);
+        // cublasSgemmStridedBatched expects forward-moving batches here.
+        // Zero/negative batch strides are still valid views, but the custom
+        // stride-aware kernel is the safe implementation for those layouts.
+        strides_ok = strides_ok && stride_a > 0 && stride_b > 0 && stride_c > 0;
     }
 
     if (a_ok && b_ok && c_ok && strides_ok) {

@@ -183,6 +183,11 @@ void Storage::copy_from_host(const float* src) {
     if (device_ == nullptr) throw std::runtime_error("copyFromHost on released storage");
     cuda::Context& ctx = cuda::Context::get();
     check_cuda(cudaMemcpyAsync(device_, src, numel_ * sizeof(float), cudaMemcpyHostToDevice, static_cast<cudaStream_t>(ctx.getStream())), "copyFromHost");
+    // The N-API call only borrows the JavaScript Float32Array. Waiting here
+    // gives copyFromHost snapshot semantics and keeps the host pointer valid
+    // until CUDA has consumed it. Device-to-device operation chains remain
+    // asynchronous; this is an explicit host/device boundary.
+    ctx.synchronize();
 #else
     if (host_.size() != numel_) throw std::runtime_error("copyFromHost on released storage");
     std::memcpy(host_.data(), src, numel_ * sizeof(float));

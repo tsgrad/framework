@@ -103,6 +103,16 @@ Napi::Value Synchronize(const Napi::CallbackInfo& info) {
     return env.Undefined();
 }
 
+Napi::Value BackendInfo(const Napi::CallbackInfo& info) {
+    Napi::Object result = Napi::Object::New(info.Env());
+#if TSGRAD_HAS_CUDA
+    result.Set("kind", "cuda");
+#else
+    result.Set("kind", "cpu");
+#endif
+    return result;
+}
+
 Napi::Object StorageWrap::Init(Napi::Env env, Napi::Object exports) {
     Napi::Function func = DefineClass(env, "NativeStorage", {});
     constructor = Napi::Persistent(func);
@@ -115,6 +125,7 @@ Napi::Object StorageWrap::Init(Napi::Env env, Napi::Object exports) {
     exports.Set("copyToHost", Napi::Function::New(env, &StorageWrap::CopyToHost));
     exports.Set("copyFromHost", Napi::Function::New(env, &StorageWrap::CopyFromHost));
     exports.Set("synchronize", Napi::Function::New(env, Synchronize));
+    exports.Set("backendInfo", Napi::Function::New(env, BackendInfo));
     return exports;
 }
 
