@@ -41,6 +41,8 @@ export class Tensor implements Variable{
             this.name = this.uniqueId.toString();
     }
 
+    free(): void { this.data.release(); }
+
     _requiresGrad(x: boolean): void{ this.history = new History(); }
     requiresGrad(): boolean { return this.history !== undefined; }
 
