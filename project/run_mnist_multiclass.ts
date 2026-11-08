@@ -1,5 +1,5 @@
 import { Tensor, tensorScope } from "../src/tensor.js";
-import { readStorageAsync, Shape, TensorData, writeStorage } from "../src/tensor_data.js"
+import { Shape, TensorData, writeStorage } from "../src/tensor_data.js"
 import { initBackend } from "../src/backend/index.js";
 import { Optimizer, SGDMomentum } from "../src/optim.js";
 import { Conv2d, Flatten, Linear, LogSoftmax, MaxPool2d, ReLU } from "../src/layers.js";
@@ -110,14 +110,16 @@ export class ImageTrain{
         for (let start = 0; start < images.length; start += BATCH) {
             const imageBatch = images.slice(start, start + BATCH);
             const labelBatch = labels.slice(start, start + BATCH);
-            const batchSize = imageBatch.length;
-            const output = this.model.forward(this.imagesToTensor(imageBatch)).detach();
-
-            const scores = await readStorageAsync(output.data._storage);
-            for (let i = 0; i < batchSize; i++) {
+            // The batch and the forward graph are only needed until the scores are on the host.
+            const scores = await tensorScope(() => {
+                const output = this.model.forward(this.imagesToTensor(imageBatch));
+                return output.toFloat32();
+            });
+            for (let i = 0; i < imageBatch.length; i++) {
                 let predicted = 0;
+                const ic = i * C;
                 for (let j = 1; j < C; j++) {
-                    if (scores[i * C + j] > scores[i * C + predicted]){
+                    if (scores[ic + j] > scores[ic + predicted]){
                         predicted = j;
                     }
                 }
