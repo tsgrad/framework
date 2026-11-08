@@ -17,16 +17,11 @@ for (let i = 0; i < valuesA.length; i++) {
 const a = new Tensor(new TensorData(valuesA, [size, size]));
 const b = new Tensor(new TensorData(valuesB, [size, size]));
 
-for (let i = 0; i < 5; i++) a.matmul(b).relu();
+for (let i = 0; i < 5; i++) tensorScope(() => {a.matmul(b).relu();});
 await synchronizeBackend();
 
 const started = performance.now();
-for (let i = 0; i < iterations; i++){
-    tensorScope(() => {
-        const mm = a.matmul(b);
-        const result = mm.relu();
-    });
-}
+for (let i = 0; i < iterations; i++) tensorScope(() => {a.matmul(b).relu();});
 await synchronizeBackend();
 const elapsed = performance.now() - started;
 
