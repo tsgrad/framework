@@ -6,7 +6,7 @@ import { Conv2d, Flatten, Linear, LogSoftmax, MaxPool2d, ReLU } from "../src/lay
 import { Sequential } from "../src/model.js";
 import { destroyPool } from "../src/fast_ops.js";
 
-const BATCH = 16;
+const BATCH = 64;
 
 // Number of classes (10 digits)
 const C = 10;
@@ -144,18 +144,18 @@ export class ImageTrain{
 
         const starttime = performance.now();
 
+        const batches: [Tensor, Tensor, number][] = [];
+        for (let s = 0; s < trainImages.length; s += BATCH) {
+            const xs = trainImages.slice(s, s + BATCH);
+            const ys = trainLabels.slice(s, s + BATCH);
+            batches.push([this.imagesToTensor(xs), this.labelsToTensor(ys), xs.length]);
+        }
+
         for (let epoch = 1; epoch < maxEpochs + 1; epoch++){
             let totalLoss = 0;
             this.model.train();
-            for (let start = 0; start < trainImages.length; start += BATCH){
-                const imageBatch = trainImages.slice(start, start + BATCH);
-                const labelBatch = trainLabels.slice(start, start + BATCH);
-                const batchSize = imageBatch.length;
-
+            for (const [x, y, batchSize] of batches){
                 const lossValue = await tensorScope(() => {
-                    const x = this.imagesToTensor(imageBatch);
-                    const y = this.labelsToTensor(labelBatch);
-
                     this.optim.zeroGrad();
 
                     const out = this.model.forward(x);
@@ -186,7 +186,7 @@ import { fileURLToPath } from "node:url";
 import { loadMnist } from "./mnist_data.js";
 await initBackend({ backend: "auto" });
 const dataDirectory = fileURLToPath(new URL("./data/mnist/", import.meta.url));
-const dataTrain = await loadMnist(dataDirectory, "train", 0, 500);
+const dataTrain = await loadMnist(dataDirectory, "train", 0, 10000);
 const dataVal = await loadMnist(dataDirectory, "train", 10000, 500);
 
 const trainer = new ImageTrain();
