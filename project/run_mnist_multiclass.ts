@@ -1,12 +1,9 @@
-import { randomFloat } from "../src/helperfunctions.js"
-import { Module, Parameter } from "../src/module.js"
-import { Tensor } from "../src/tensor.js";
+import { Tensor, tensorScope } from "../src/tensor.js";
 import { readStorageAsync, Shape, TensorData, writeStorage } from "../src/tensor_data.js"
 import { initBackend } from "../src/backend/index.js";
-import * as operators from "../src/operators.js"
-import { Graph } from "../src/datasets.js";
-import { Optimizer, SGD, SGDMomentum } from "../src/optim.js";
-import { dropout, logsoftmax, maxpool2d } from "../src/tensor_functions.js";
+import { Optimizer, SGDMomentum } from "../src/optim.js";
+import { Conv2d, Flatten, Linear, LogSoftmax, MaxPool2d, ReLU } from "../src/layers.js";
+import { Sequential } from "../src/model.js";
 import { destroyPool } from "../src/fast_ops.js";
 
 const BATCH = 16;
@@ -23,148 +20,20 @@ function sharedTensorData(values: ArrayLike<number>, shape: Shape): TensorData {
     return data;
 }
 
-function RParam(...shape: Shape): Tensor{
-    // Random tensor where each cell is -0.05 to 0.05 with shape as the shape
-    const data = TensorData.fill(shape);
-    const values = new Float32Array(data.size);
-    for (let i = 0; i < values.length; i++)
-        values[i] = randomFloat(-0.05, 0.05);
-    writeStorage(data._storage, values);
-    const tensor = new Tensor(data);
-    tensor._requiresGrad(true);
-    return tensor;
-}
-
-function HeParam(fanIn: number, ...shape: Shape): Tensor {
-    const bound = Math.sqrt(6 / fanIn);
-    const data = TensorData.fill(shape);
-    const values = new Float32Array(data.size);
-
-    for (let i = 0; i < values.length; i++)
-        values[i] = randomFloat(-bound, bound);
-    writeStorage(data._storage, values);
-
-    const tensor = new Tensor(data);
-    tensor._requiresGrad(true);
-    return tensor;
-}
-
-function ZeroParam(...shape: Shape): Tensor {
-    const tensor = new Tensor(TensorData.fill(shape, 0));
-    tensor._requiresGrad(true);
-    return tensor;
-}
-
-type ActivationFunction = "relu" | "sigmoid";
-
-export interface NetworkLayer{
-    layer: Layer;
-    activationFunction: ActivationFunction
-}
-
-export abstract class Network extends Module{
-    layers: NetworkLayer[];
-
-    constructor(){
-        super();
-        this.layers = [];
-    }
-
-    forward(x: Tensor): Tensor{
-        let h = x;
-        for (let i = 0; i < this.layers.length; i++){
-            h = this.layers[i].layer.forward(h);
-            h = h[this.layers[i].activationFunction]();
-        }
-        return h;
-    }
-
-    addLayer(type: new (inSize: number, outSize: number, ...args: number[]) => Layer, activationFunction: ActivationFunction, inSize: number, outSize: number, ...args: any[]){
-        let layer = new type(inSize, outSize, ...args);
-        this.addModule(`layer_${this.layers.length}`, layer);
-        this.layers.push({layer: layer, activationFunction: activationFunction});
-    }
-}
-
-export abstract class Layer extends Module{
-    inSize: number;
-    outSize: number;
-    constructor(inSize: number, outSize: number){
-        super();
-        this.inSize = inSize;
-        this.outSize = outSize;
-    }
-
-    abstract forward(x: Tensor): Tensor;
-}
-
-export class Linear extends Layer{
-    weights: Parameter;
-    bias: Parameter;
-    constructor(inSize: number, outSize: number){
-        super(inSize, outSize);
-        this.weights = this.addParameter(`weights`, HeParam(inSize, inSize, outSize));
-        this.bias = this.addParameter(`bias`, ZeroParam(outSize));
-    }
-
-    forward(inputs: Tensor): Tensor{
-        return inputs.matmul(this.weights.value as Tensor).add(this.bias.value as Tensor);
-
-        /* we have matmul now so this is no longer needed
-        // we want output = [batchsize, outsize]
-        return (this.weights.value as Tensor) // first need to reshape weights and inputs so they can be multiplied together
-            .view(1, this.inSize, this.outSize) // now [insize, outsize] is [1, insize, outsize]
-            .mul(
-                inputs.view(...inputs.shape(), 1) // now inputs is [batchsize, insize, 1]
-            ) // so we are multiplying [1, insize, outsize] * [batchsize, insize, 1] = [batchsize, insize, outsize]
-            .sum(1) // sum across insize so we have [batchsize, 1, outsize]
-            .view(inputs.shape()[0], this.outSize) // actually reduce the dimensions by using view so now we have [batchsize, outsize]
-            .add( // second we need to add bias [outsize]
-                this.bias.value as Tensor
-            ); // we can do [batchsize, outsize] + [outsize] since add will broadcast [outsize] to [batchsize, outsize]
-        */
-    }
-}
-
-export class Conv2d extends Layer{
-    weights: Parameter;
-    bias: Parameter;
-    constructor(inChannels: number, outChannels: number, kh: number, kw: number){
-        super(inChannels, outChannels);
-        this.weights = this.addParameter(`weights`, HeParam(inChannels * kh * kw, outChannels, inChannels, kh, kw));
-        this.bias = this.addParameter(`bias`, ZeroParam(outChannels, 1, 1));
-    }
-
-    forward(inputs: Tensor): Tensor{
-        return inputs.conv2d(this.weights.value as Tensor).add(this.bias.value as Tensor);
-    }
-}
-
-export class MNistNetwork extends Network {
-    conv1: Conv2d;
-    conv2: Conv2d;
-    linear1: Linear;
-    linear2: Linear;
-    mid?: Tensor;
-    out?: Tensor;
+export class MNistNetwork extends Sequential {
     constructor() {
-        super();
-        this.conv1 = new Conv2d(1, 4, 3, 3);
-        this.conv2 = new Conv2d(4, 8, 3, 3);
-        this.linear1 = new Linear(392, 64);
-        this.linear2 = new Linear(64, C);
-    }
-    forward(x: Tensor): Tensor {
-        this.mid = this.conv1.forward(x).relu();
-        this.out = this.conv2.forward(this.mid).relu();
-        const pooled = maxpool2d(this.out, [4, 4]);
-        const batch = pooled.shape()[0];
-        // 8 channels × 7 × 7 = 392
-        let h = pooled.view(batch, 392);
-        h = this.linear1.forward(h).relu();
-        //h = dropout(h, 0.25, !this.training);
-        h = this.linear2.forward(h);
-        return logsoftmax(h, 1);
+        super(
+            new Conv2d(1, 4, 3, 3),
+            new ReLU(),
+            new Conv2d(4, 8, 3, 3),
+            new ReLU(),
+            new MaxPool2d([4, 4]),
+            new Flatten(),
+            new Linear(392, 64),
+            new ReLU(),
+            new Linear(64, C),
+            new LogSoftmax(1),
+        );
     }
 }
 
@@ -188,7 +57,7 @@ export type ImageLogFn = (
 export class ImageTrain{
     learningRate: number = 0;
     maxEpochs: number = 0;
-    model: Network;
+    model: MNistNetwork;
     optim: Optimizer;
 
     constructor(){
@@ -202,6 +71,14 @@ export class ImageTrain{
 
     private labelsToTensor(labels: OneHotLabel[]): Tensor {
         return new Tensor(sharedTensorData(labels.flat(), [labels.length, C]));
+    }
+
+    private initializeParameterGradients(): void {
+        for (const parameter of this.model.parameters()) {
+            const value = parameter.value;
+            if (value instanceof Tensor && value.grad === undefined)
+                value.grad = Tensor.zeros(value.shape());
+        }
     }
 
     runOne(x: Image): Tensor{
@@ -258,6 +135,8 @@ export class ImageTrain{
         
         this.model = new MNistNetwork();
         this.optim = new SGDMomentum(this.model.parameters(), learningRate);
+        // Gradients persist between batches, so create them outside the batch scope.
+        this.initializeParameterGradients();
         this.learningRate = learningRate;
         this.maxEpochs = maxEpochs;
 
@@ -273,18 +152,20 @@ export class ImageTrain{
                 const labelBatch = trainLabels.slice(start, start + BATCH);
                 const batchSize = imageBatch.length;
 
-                const x = this.imagesToTensor(imageBatch);
-                const y = this.labelsToTensor(labelBatch);
+                const lossValue = await tensorScope(() => {
+                    const x = this.imagesToTensor(imageBatch);
+                    const y = this.labelsToTensor(labelBatch);
 
-                this.optim.zeroGrad();
+                    this.optim.zeroGrad();
 
-                const out = this.model.forward(x);
-                const loss = out.mul(y).sum(1).sum(0).div(batchSize).neg();
+                    const out = this.model.forward(x);
+                    const loss = out.mul(y).sum(1).sum(0).div(batchSize).neg();
 
-                loss.backward();
-                this.optim.step();
+                    loss.backward();
+                    this.optim.step();
 
-                const lossValue = await loss.itemAsync();
+                    return loss.itemAsync();
+                });
                 totalLoss += lossValue;
                 losses.push(lossValue);
             }
