@@ -83,9 +83,10 @@ export class TensorData{
     shape: UserShape;
     dims: number;
     size: number;
+    private _ownsStorage: boolean;
     private _released = false;
 
-    constructor(storage: TensorBuffer, shape: Shape, strides: Stride = TensorData.calculateStrides(shape), retain = false){
+    constructor(storage: TensorBuffer, shape: Shape, strides: Stride = TensorData.calculateStrides(shape), ownsStorage = true){
         this._shape = shape;
         this._stride = strides;
 
@@ -93,6 +94,7 @@ export class TensorData{
         this.dims = strides.length;
         this.size = prod(shape);
         this.shape = shape;
+        this._ownsStorage = ownsStorage;
 
         const backend = getBackend();
         if (storage instanceof Float32Array && backend.kind !== 'cpu') {
@@ -100,16 +102,18 @@ export class TensorData{
             const handle = backend.empty(this.size);
             if (this.size > 0) backend.copyFromHost(handle, storage);
             this._storage = handle;
+            // The host array was copied into a new device buffer, which this object owns.
+            this._ownsStorage = true;
         } else {
             if (!backend.isStorage(storage)) throw new Error(`Storage does not belong to the active ${backend.kind} backend`);
             if (storage instanceof Float32Array && storage.length !== this.size) throw "_storage.length not equal to this.size";
-            if (retain) backend.retain(storage);
             this._storage = storage;
         }
     }
 
     static share(storage: TensorBuffer, shape: Shape, strides: Stride = TensorData.calculateStrides(shape)): TensorData {
-        return new TensorData(storage, shape, strides, true);
+        // A view aliases existing storage. The allocating tensor keeps the only owner count.
+        return new TensorData(storage, shape, strides, false);
     }
 
     static fill(shape: Shape, num: number = 0): TensorData{
@@ -125,6 +129,7 @@ export class TensorData{
     release(): void {
         if (this._released) return;
         this._released = true;
+        if (!this._ownsStorage) return;
         getBackend().release(this._storage);
     }
 

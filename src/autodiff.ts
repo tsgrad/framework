@@ -69,14 +69,6 @@ export function inBackward(): boolean {
     return backwardDepth > 0;
 }
 
-function releaseGrad(grad: any, held: Map<number, any>): void {
-    if (grad == null || typeof grad !== "object" || typeof grad.data?.release !== "function") return;
-    for (const value of held.values()) {
-        if (value === grad) return;
-    }
-    grad.data.release();
-}
-
 function detachTape(val: Variable): void {
     const history = val.history;
     if (!history) return;
@@ -97,10 +89,10 @@ export function backpropagate(start: Variable, dStart: any): void{
                 const grad = derivatives.get(val.uniqueId);
                 if (grad !== undefined) val.accumulateDerivative(grad);
                 derivatives.delete(val.uniqueId);
-                releaseGrad(grad, derivatives);
             }
             else if (val.isConstant()){
-                continue;
+                // Drop the gradient computed for this input. tensorScope releases its storage.
+                derivatives.delete(val.uniqueId);
             }
             else{
                 const grad = derivatives.get(val.uniqueId);
@@ -113,15 +105,11 @@ export function backpropagate(start: Variable, dStart: any): void{
                     }
                     else if (typeof cur === "number"){
                         derivatives.set(parent.uniqueId, cur + d);
-                        releaseGrad(d, derivatives);
                     }
                     else{
                         derivatives.set(parent.uniqueId, cur.add(d));
-                        releaseGrad(cur, derivatives);
-                        releaseGrad(d, derivatives);
                     }
                 }
-                releaseGrad(grad, derivatives);
                 detachTape(val);
             }
         }
