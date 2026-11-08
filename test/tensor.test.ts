@@ -53,6 +53,28 @@ test("tensorScope releases tensors when its callback throws", () => {
     }
 });
 
+test("tensorScope keeps tensors alive until a returned Promise settles", async () => {
+    const input = new Tensor(new TensorData(new Float32Array([1]), [1]));
+    const release = vi.spyOn(getBackend(), "release");
+    let resolve!: () => void;
+    const pending = new Promise<void>(done => { resolve = done; });
+
+    try {
+        const result = tensorScope(() => {
+            input.neg();
+            return pending;
+        });
+
+        expect(release).not.toHaveBeenCalled();
+        resolve();
+        await result;
+        expect(release).toHaveBeenCalledTimes(1);
+    }
+    finally {
+        release.mockRestore();
+    }
+});
+
 test("nested tensorScopes release only their own tensors in reverse order", () => {
     const input = new Tensor(new TensorData(new Float32Array([1]), [1]));
     const release = vi.spyOn(getBackend(), "release");

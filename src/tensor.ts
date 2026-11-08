@@ -32,17 +32,30 @@ function registerTensorData(data: TensorData): void {
     tensorScopes[tensorScopes.length - 1]?.data.push(data);
 }
 
+function releaseTensorScope(scope: TensorScope): void {
+    for (let i = scope.data.length - 1; i >= 0; i--)
+        scope.data[i].release();
+}
+
 export function tensorScope<T>(callback: () => T): T {
     const scope: TensorScope = { data: [] };
     tensorScopes.push(scope);
+    let result: T;
     try {
-        return callback();
+        result = callback();
     }
-    finally {
+    catch (error) {
         tensorScopes.pop();
-        for (let i = scope.data.length - 1; i >= 0; i--)
-            scope.data[i].release();
+        releaseTensorScope(scope);
+        throw error;
     }
+
+    tensorScopes.pop();
+    if (result instanceof Promise)
+        return result.finally(() => releaseTensorScope(scope)) as T;
+
+    releaseTensorScope(scope);
+    return result;
 }
 
 var _tensorCount = 0;
