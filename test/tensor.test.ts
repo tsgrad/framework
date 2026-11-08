@@ -1,13 +1,84 @@
-import { describe, test, expect } from "vitest"
-import { Tensor } from "../src/tensor.js"
+import { describe, test, expect, vi } from "vitest"
+import { Tensor, tensorScope } from "../src/tensor.js"
 import { readStorage, TensorData } from "../src/tensor_data";
 import { conv1d, conv2d } from "../src/tensor_functions.js";
 import { fastConv1d, fastConv2d } from "../src/fast_ops.js";
 import { loadNativeAddon, native } from "../src/native.js";
-import { initBackend } from "../src/backend/index.js";
+import { getBackend, initBackend } from "../src/backend/index.js";
 
 const nativeAddon = await loadNativeAddon();
 await initBackend({ backend: nativeAddon ? "native" : "cpu" });
+
+test("tensorScope releases chained and returned tensors but not existing inputs", () => {
+    const input = new Tensor(new TensorData(new Float32Array([-1, 2]), [2]));
+    const inputStorage = input.data._storage;
+    const release = vi.spyOn(getBackend(), "release");
+
+    try {
+        let middleStorage;
+        const returned = tensorScope(() => {
+            const middle = input.relu();
+            middleStorage = middle.data._storage;
+            return middle.neg();
+        });
+
+        expect(release.mock.calls.map(([storage]) => storage)).toEqual([
+            returned.data._storage,
+            middleStorage,
+        ]);
+        expect(Array.from(readStorage(inputStorage))).toEqual([-1, 2]);
+    }
+    finally {
+        release.mockRestore();
+    }
+});
+
+test("tensorScope releases tensors when its callback throws", () => {
+    const input = new Tensor(new TensorData(new Float32Array([1]), [1]));
+    const release = vi.spyOn(getBackend(), "release");
+    let temporaryStorage;
+
+    try {
+        expect(() => tensorScope(() => {
+            const temporary = input.neg();
+            temporaryStorage = temporary.data._storage;
+            throw new Error("scope failure");
+        })).toThrow("scope failure");
+
+        expect(release).toHaveBeenCalledTimes(1);
+        expect(release).toHaveBeenCalledWith(temporaryStorage);
+    }
+    finally {
+        release.mockRestore();
+    }
+});
+
+test("nested tensorScopes release only their own tensors in reverse order", () => {
+    const input = new Tensor(new TensorData(new Float32Array([1]), [1]));
+    const release = vi.spyOn(getBackend(), "release");
+    let outerFirstStorage;
+    let innerStorage;
+    let outerLastStorage;
+
+    try {
+        tensorScope(() => {
+            outerFirstStorage = input.relu().data._storage;
+            tensorScope(() => {
+                innerStorage = input.neg().data._storage;
+            });
+            outerLastStorage = input.exp().data._storage;
+        });
+
+        expect(release.mock.calls.map(([storage]) => storage)).toEqual([
+            innerStorage,
+            outerLastStorage,
+            outerFirstStorage,
+        ]);
+    }
+    finally {
+        release.mockRestore();
+    }
+});
 
 test("Matmul test", () => {
     const A = new Tensor(new TensorData(new Float32Array([1, 2, 3, 4, 5, 6]), [2, 3]));

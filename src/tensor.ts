@@ -17,6 +17,34 @@ export class History{
     }
 }
 
+type TensorScope = {
+    data: TensorData[];
+};
+
+const tensorScopes: TensorScope[] = [];
+const introducedTensorData = new WeakSet<TensorData>();
+
+function registerTensorData(data: TensorData): void {
+    if (introducedTensorData.has(data))
+        return;
+
+    introducedTensorData.add(data);
+    tensorScopes[tensorScopes.length - 1]?.data.push(data);
+}
+
+export function tensorScope<T>(callback: () => T): T {
+    const scope: TensorScope = { data: [] };
+    tensorScopes.push(scope);
+    try {
+        return callback();
+    }
+    finally {
+        tensorScopes.pop();
+        for (let i = scope.data.length - 1; i >= 0; i--)
+            scope.data[i].release();
+    }
+}
+
 var _tensorCount = 0;
 export class Tensor implements Variable{
     // Tensor is a generalization of Scalar in that it is a Variable that
@@ -33,6 +61,7 @@ export class Tensor implements Variable{
         this.uniqueId = _tensorCount;
 
         this.data = tensor;
+        registerTensorData(tensor);
         this.history = history;
         this.grad = undefined;
         if (name !== undefined)

@@ -42,9 +42,7 @@ Context::Context() : device_(0), stream_(nullptr), cublas_(nullptr) {
     cublas_ = handle;
     try {
         check_cublas(cublasSetStream(handle, stream), "cublasSetStream");
-        // Pedantic math preserves strict FP32 behavior. Applications that
-        // prefer Ampere TF32 throughput can make this a runtime option later.
-        check_cublas(cublasSetMathMode(handle, CUBLAS_PEDANTIC_MATH), "cublasSetMathMode");
+        check_cublas(cublasSetMathMode(handle, CUBLAS_DEFAULT_MATH), "cublasSetMathMode");
     } catch (...) {
         cublasDestroy(handle);
         cudaStreamDestroy(stream);
