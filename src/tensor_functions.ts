@@ -371,9 +371,8 @@ export class ReLU extends TensorFunction{
         return new Tensor(relu(a.data));
     }
     static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
-        let [a] = ctx.savedValues;
-        let relumask = new Tensor(lt(TensorData.fill(a.data.shape, 0), a.data)); // relumask[i] = 1 if a[i] > zeros[i] else 0
-        return [gradOutput.mul(relumask)];
+        const [a] = ctx.savedValues;
+        return [gradOutput.mul(a.gt(0))];
     }
 }
 
