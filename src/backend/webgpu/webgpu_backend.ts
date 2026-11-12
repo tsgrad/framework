@@ -29,6 +29,19 @@ function product(shape: Shape): number {
     return shape.reduce((a, b) => a * b, 1);
 }
 
+function positionToIndex(ordinal: number, shape: Shape, out: number[]): void {
+    for (let i = shape.length - 1; i >= 0; i--) {
+        out[i] = ordinal % shape[i]!;
+        ordinal = Math.trunc(ordinal / shape[i]!);
+    }
+}
+
+function leadingOffset(index: number[], stride: Stride, count: number): number {
+    let position = 0;
+    for (let i = 0; i < count; i++) position += index[i]! * stride[i]!;
+    return position;
+}
+
 function same(a: Shape, b: Shape): boolean {
     return a.length === b.length && a.every((v, i) => v === b[i]);
 }
@@ -288,14 +301,42 @@ export class WebGpuBackend implements DeviceBackend {
     matmul(outStorage: BackendStorage, _outShape: Shape, outStride: Stride,
         aStorage: BackendStorage, aShape: Shape, aStride: Stride,
         bStorage: BackendStorage, bShape: Shape, bStride: Stride): void {
-        if (aShape.length !== 2 || bShape.length !== 2) throw new Error('WebGPU matmul currently requires rank-2 tensors');
+        if (aShape.length !== bShape.length || aShape.length < 2)
+            throw new Error('WebGPU matmul requires matching ranks of at least 2');
+        const rank = aShape.length;
+        for (let i = 0; i < rank - 2; i++)
+            if (aShape[i] !== bShape[i]) throw new Error('WebGPU matmul batch dimensions must match');
+        const m = aShape[rank - 2]!, k = aShape[rank - 1]!, n = bShape[rank - 1]!;
+        if (k !== bShape[rank - 2]) throw new Error('WebGPU matmul inner dimensions must match');
+
+        const batchRank = rank - 2;
+        const batchShape = aShape.slice(0, batchRank);
+        let batch = 1;
+        for (const dim of batchShape) batch *= dim;
+        if (batch === 0 || m === 0 || n === 0) return;
+
         const out = gpuStorage(outStorage), a = gpuStorage(aStorage), b = gpuStorage(bStorage);
-        const m = aShape[0]!, k = aShape[1]!, n = bShape[1]!;
-        const params = this.params([m, n, k, outStride[0]!, outStride[1]!, aStride[0]!, aStride[1]!, bStride[0]!, bStride[1]!]);
-        this.submit('matmul:tiled16', MATMUL_SHADER, [
-            { binding: 0, resource: { buffer: a.buffer } }, { binding: 1, resource: { buffer: b.buffer } },
-            { binding: 2, resource: { buffer: out.buffer } }, { binding: 3, resource: { buffer: params } },
-        ], [Math.ceil(n / 16), Math.ceil(m / 16)], [params]);
+        const batchIndex = new Array(batchRank).fill(0);
+        for (let ordinal = 0; ordinal < batch; ordinal++) {
+            let aBase = 0, bBase = 0, outBase = 0;
+            if (batchRank > 0) {
+                positionToIndex(ordinal, batchShape, batchIndex);
+                aBase = leadingOffset(batchIndex, aStride, batchRank);
+                bBase = leadingOffset(batchIndex, bStride, batchRank);
+                outBase = leadingOffset(batchIndex, outStride, batchRank);
+            }
+            const params = this.params([
+                m, n, k,
+                outStride[rank - 2]!, outStride[rank - 1]!,
+                aStride[rank - 2]!, aStride[rank - 1]!,
+                bStride[rank - 2]!, bStride[rank - 1]!,
+                aBase, bBase, outBase,
+            ]);
+            this.submit('matmul:tiled16', MATMUL_SHADER, [
+                { binding: 0, resource: { buffer: a.buffer } }, { binding: 1, resource: { buffer: b.buffer } },
+                { binding: 2, resource: { buffer: out.buffer } }, { binding: 3, resource: { buffer: params } },
+            ], [Math.ceil(n / 16), Math.ceil(m / 16)], [params]);
+        }
     }
 
     conv1d(outStorage: BackendStorage, outShape: Shape, outStride: Stride,

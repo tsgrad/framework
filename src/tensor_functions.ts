@@ -107,10 +107,23 @@ export function isclose(a: TensorData, b: TensorData): TensorData{
     return out;
 }
 
+function shapesCanBeMul(aShape: Shape, bShape: Shape): boolean{
+    if (aShape.length != bShape.length || aShape.length < 2) return false;
+
+    for (let i = 0; i < aShape.length - 2; i++)
+        if (aShape[i] != bShape[i]) return false;
+
+    return aShape[aShape.length - 1] == bShape[bShape.length - 2];
+}
+
 export function matmul(a: TensorData, b: TensorData): TensorData{
-    if (a._shape.length != 2 || b._shape.length != 2)
-        throw "both a and b's shapes must be of length 2 for now";
-    let out = TensorData.empty([a._shape[0], b._shape[1]]);
+    if (!shapesCanBeMul(a._shape, b._shape))
+        throw "Incompatible shapes for matrix mul, a: " + a._shape + ", b: " + b._shape;
+
+    // [..., M, K] @ [..., K, N] -> [..., M, N]. Leading dimensions are the batch.
+    const outShape = [...a._shape];
+    outShape[outShape.length - 1] = b._shape[b._shape.length - 1]!;
+    let out = TensorData.empty(outShape);
     matMul(out._storage, out._shape, out._stride, a._storage, a._shape, a._stride, b._storage, b._shape, b._stride);
     return out;
 }
@@ -433,6 +446,17 @@ export class IsClose extends TensorFunction{
     }
 }
 
+function transposeMatrixDims(a: Tensor): Tensor{
+    const rank = a.shape().length;
+    const order = new Array(rank);
+    for (let i = 0; i < rank; i++)
+        order[i] = i;
+
+    order[rank - 1] = rank - 2;
+    order[rank - 2] = rank - 1;
+    return a.permute(...order);
+}
+
 export class MatMul extends TensorFunction{
     static forward(ctx: Context, a: Tensor, b: Tensor): Tensor{
         ctx.saveForBackward(a, b);
@@ -441,7 +465,7 @@ export class MatMul extends TensorFunction{
 
     static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
         let [a, b] = ctx.savedValues;
-        return [gradOutput.matmul(b.permute(1, 0)), a.permute(1, 0).matmul(gradOutput)];
+        return [gradOutput.matmul(transposeMatrixDims(b)), transposeMatrixDims(a).matmul(gradOutput)];
     }
 }
 

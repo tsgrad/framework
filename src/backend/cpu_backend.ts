@@ -38,6 +38,12 @@ function indexToPosition(index: number[], stride: Stride): number {
     return position;
 }
 
+function leadingOffset(index: number[], stride: Stride, count: number): number {
+    let position = 0;
+    for (let i = 0; i < count; i++) position += index[i]! * stride[i]!;
+    return position;
+}
+
 export class CpuBackend implements DeviceBackend {
     readonly kind = 'cpu' as const;
     readonly supportsSynchronousRead = true;
@@ -81,17 +87,45 @@ export class CpuBackend implements DeviceBackend {
     matmul(out: BackendStorage, outShape: Shape, outStride: Stride,
         a: BackendStorage, aShape: Shape, aStride: Stride,
         b: BackendStorage, bShape: Shape, bStride: Stride): void {
-        if (aShape.length !== 2 || bShape.length !== 2) throw new Error('CPU matmul requires rank-2 tensors');
+        if (aShape.length !== bShape.length || aShape.length < 2)
+            throw new Error('CPU matmul requires matching ranks of at least 2');
+        const rank = aShape.length;
+        for (let i = 0; i < rank - 2; i++)
+            if (aShape[i] !== bShape[i]) throw new Error('CPU matmul batch dimensions must match');
+        const m = aShape[rank - 2]!, k = aShape[rank - 1]!, n = bShape[rank - 1]!;
+        if (k !== bShape[rank - 2]) throw new Error('CPU matmul inner dimensions must match');
+        if (outShape.length !== rank) throw new Error('CPU matmul output rank must match the inputs');
+
         const output = host(out), av = host(a), bv = host(b);
-        const m = aShape[0]!, k = aShape[1]!, n = bShape[1]!;
-        for (let row = 0; row < m; row++) {
-            for (let col = 0; col < n; col++) {
-                let total = 0;
-                for (let inner = 0; inner < k; inner++)
-                    total += av[row * aStride[0]! + inner * aStride[1]!]!
-                        * bv[inner * bStride[0]! + col * bStride[1]!]!;
-                output[row * outStride[0]! + col * outStride[1]!] = total;
+        const batchRank = rank - 2;
+        const batchShape = aShape.slice(0, batchRank);
+        let batch = 1;
+        for (const dim of batchShape) batch *= dim;
+        if (batch === 0 || m === 0 || n === 0) return;
+
+        const batchIndex = new Array(batchRank).fill(0);
+        const matrix = m * n;
+        for (let ordinal = 0; ordinal < batch * matrix; ordinal++) {
+            const within = ordinal % matrix;
+            const row = Math.trunc(within / n);
+            const col = within % n;
+            let aBase = 0, bBase = 0, outBase = 0;
+            if (batchRank > 0) {
+                positionToIndex(Math.trunc(ordinal / matrix), batchShape, batchIndex);
+                aBase = leadingOffset(batchIndex, aStride, batchRank);
+                bBase = leadingOffset(batchIndex, bStride, batchRank);
+                outBase = leadingOffset(batchIndex, outStride, batchRank);
             }
+
+            let total = 0;
+            let aPos = aBase + row * aStride[rank - 2]!;
+            let bPos = bBase + col * bStride[rank - 1]!;
+            for (let inner = 0; inner < k; inner++) {
+                total += av[aPos]! * bv[bPos]!;
+                aPos += aStride[rank - 1]!;
+                bPos += bStride[rank - 2]!;
+            }
+            output[outBase + row * outStride[rank - 2]! + col * outStride[rank - 1]!] = total;
         }
     }
 

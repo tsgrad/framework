@@ -86,6 +86,7 @@ interface MatMulTask {
     outBuffer: SharedArrayBuffer,
     outStride: number[],
     aBuffer: SharedArrayBuffer,
+    aShape: number[],
     aStride: number[],
     bBuffer: SharedArrayBuffer,
     bStride: number[],
@@ -223,23 +224,36 @@ function handleMatMul(task: MatMulTask): void{
     const outBuffer = new Float32Array(task.outBuffer);
     const aStorage = new Float32Array(task.aBuffer);
     const bStorage = new Float32Array(task.bBuffer);
+    const rank = task.aShape.length;
+    const batchRank = rank - 2;
+    const batchShape = task.aShape.slice(0, batchRank);
+    const matrix = task.m * task.n;
+    const batchIndex = new Array(batchRank);
 
     for(let i = task.start; i < task.end; i++){
-        const row = Math.floor(i / task.n);
-        const col = i % task.n;
+        const within = i % matrix;
+        const row = Math.floor(within / task.n);
+        const col = within % task.n;
 
-        let aPos = row * task.aStride[0];
-        let bPos = col * task.bStride[1];
+        let aBase = 0, bBase = 0, outBase = 0;
+        if (batchRank > 0){
+            positionToIndex(Math.floor(i / matrix), batchShape, batchIndex);
+            aBase = indexToPosition(batchIndex, task.aStride);
+            bBase = indexToPosition(batchIndex, task.bStride);
+            outBase = indexToPosition(batchIndex, task.outStride);
+        }
+
+        let aPos = aBase + row * task.aStride[rank - 2];
+        let bPos = bBase + col * task.bStride[rank - 1];
 
         let sum = 0;
         for (let j = 0; j < task.k; j++){
             sum += aStorage[aPos] * bStorage[bPos];
-            aPos += task.aStride[1];
-            bPos += task.bStride[0];
+            aPos += task.aStride[rank - 1];
+            bPos += task.bStride[rank - 2];
         }
 
-        const outPos = row * task.outStride[0] + col * task.outStride[1];
-        outBuffer[outPos] = sum;
+        outBuffer[outBase + row * task.outStride[rank - 2] + col * task.outStride[rank - 1]] = sum;
     }
 }
 

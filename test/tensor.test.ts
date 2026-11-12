@@ -111,6 +111,50 @@ test("Matmul test", () => {
     const actual = readStorage(C.data._storage);
     expect(actual.length).toEqual(expected.length);
     expected.forEach((val, i) => {expect(val).toBeCloseTo(actual[i])});
+
+    A._requiresGrad(true);
+    B._requiresGrad(true);
+    A.matmul(B).backward();
+    expectClose(readStorage(A.grad!.data._storage), [15, 19, 23, 15, 19, 23]);
+    expectClose(readStorage(B.grad!.data._storage), [5, 5, 7, 7, 9, 9]);
+});
+
+test("Batched matmul multiplies each leading slice", () => {
+    const A = new Tensor(new TensorData(new Float32Array([
+        1, 2, 3, 4, 5, 6,
+        2, 0, 1, 1, 3, 2,
+    ]), [2, 2, 3]));
+    const B = new Tensor(new TensorData(new Float32Array([
+        1, 0, 0, 1, 1, 1,
+        1, 2, 3, 0, 1, 1,
+    ]), [2, 3, 2]));
+    expectClose(readStorage(A.matmul(B).data._storage), [4, 5, 10, 11, 3, 5, 12, 4]);
+
+    const A4 = new Tensor(new TensorData(new Float32Array([1, 2, 3, 4, 5, 6, 7, 8]), [2, 1, 2, 2]));
+    const B4 = new Tensor(new TensorData(new Float32Array([1, 0, 0, 1, 2, 0, 0, 2]), [2, 1, 2, 2]));
+    expectClose(readStorage(A4.matmul(B4).data._storage), [1, 2, 3, 4, 10, 12, 14, 16]);
+
+    A._requiresGrad(true);
+    B._requiresGrad(true);
+    A.matmul(B).backward();
+    expectClose(readStorage(A.grad!.data._storage), [1, 1, 2, 1, 1, 2, 3, 3, 2, 3, 3, 2]);
+    expectClose(readStorage(B.grad!.data._storage), [5, 5, 7, 7, 9, 9, 3, 3, 3, 3, 3, 3]);
+});
+
+test("Batched matmul follows leading strides", () => {
+    const values = new Float32Array(16);
+    for (let i = 0; i < values.length; i++) values[i] = i + 1;
+    const eye = new Float32Array(16);
+    for (let batch = 0; batch < 4; batch++) {
+        eye[batch * 4] = 1;
+        eye[batch * 4 + 3] = 1;
+    }
+
+    const a = new Tensor(new TensorData(values, [2, 2, 2, 2]));
+    const b = new Tensor(new TensorData(eye, [2, 2, 2, 2]));
+    const direct = a.matmul(b);
+    const swapped = a.permute(1, 0, 2, 3).matmul(b.permute(1, 0, 2, 3)).permute(1, 0, 2, 3).tocontiguous();
+    expectClose(readStorage(swapped.data._storage), readStorage(direct.data._storage));
 });
 
 test("Native matmul supports strided and batched layouts", () => {

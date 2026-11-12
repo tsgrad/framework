@@ -53,7 +53,8 @@ void reduce_max(const View& out, const View& in, int32_t dim);
 void reduce_sum(const View& out, const View& in, int32_t dim);
 void reduce_prod(const View& out, const View& in, int32_t dim);
 
-// Rank-2 matmul. out is [M, N], a is [M, K], b is [K, N], strides included.
+// out[..., M, N] = a[..., M, K] @ b[..., K, N]. Batch dimensions must match.
+// Strides included.
 void matmul(const View& out, const View& a, const View& b);
 
 // conv1d: out [batch, outChannels, outWidth], input [batch, inChannels, width],
@@ -115,7 +116,7 @@ void reduce_sum(const View& out, const View& in, int32_t dim);
 void reduce_prod(const View& out, const View& in, int32_t dim);
 
 // Leading dimensions are a batch. A uniform stride goes to cuBLAS.
-// The stride kernel covers every other layout. CPU matmul is still rank 2.
+// The stride kernel covers every other layout.
 void matmul(const View& out, const View& a, const View& b);
 
 void conv1d(const View& out, const View& input, const View& weight, bool reverse);

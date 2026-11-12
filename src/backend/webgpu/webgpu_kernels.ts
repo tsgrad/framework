@@ -197,15 +197,15 @@ fn main(@builtin(workgroup_id) group: vec3u, @builtin(local_invocation_id) local
         let lane = local.y * TILE + local.x;
         tile_a[lane] = 0.0;
         tile_b[lane] = 0.0;
-        if (row < m && ak < k) { tile_a[lane] = a[row * p[5] + ak * p[6]]; }
-        if (bk < k && col < n) { tile_b[lane] = b[bk * p[7] + col * p[8]]; }
+        if (row < m && ak < k) { tile_a[lane] = a[p[9] + row * p[5] + ak * p[6]]; }
+        if (bk < k && col < n) { tile_b[lane] = b[p[10] + bk * p[7] + col * p[8]]; }
         workgroupBarrier();
         for (var j = 0u; j < TILE; j++) {
             total += tile_a[local.y * TILE + j] * tile_b[j * TILE + local.x];
         }
         workgroupBarrier();
     }
-    if (row < m && col < n) { out[row * p[3] + col * p[4]] = total; }
+    if (row < m && col < n) { out[p[11] + row * p[3] + col * p[4]] = total; }
 }`;
 
 export const CONV1D_SHADER = `

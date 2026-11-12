@@ -271,19 +271,17 @@ function shapesCanBeMul(aShape: Shape, bShape: Shape){
 export function fastMatMul(out: Storage, outShape: Shape, outStride: Stride, aStorage: Storage, aShape: Shape, aStride: Stride, bStorage: Storage, bShape: Shape, bStride: Stride){
     if (!shapesCanBeMul(aShape, bShape))
         throw `Incompatible shapes for matrix mul, a: ${aShape}, b: ${bShape}`;
-    
-    if (aShape.length !== 2)
-        throw "Shapes length must be 2 for now";
 
-    const m = aShape[0];
-    const k = aShape[1];
-    const bK = bShape[0];
-    const n = bShape[1];
-
-    const size = m * n * k;
-    const outSize = m * n;
-
-    
+    const rank = aShape.length;
+    const m = aShape[rank - 2];
+    const k = aShape[rank - 1];
+    const n = bShape[rank - 1];
+    const batchRank = rank - 2;
+    const batchShape = aShape.slice(0, batchRank);
+    const batch = prod(batchShape);
+    const matrix = m * n;
+    const outSize = batch * matrix;
+    const size = outSize * k;
 
     if (size >= THRESHOLD && isShared(out) && isShared(aStorage) && isShared(bStorage)){
         const pool = getPool();
@@ -295,6 +293,7 @@ export function fastMatMul(out: Storage, outShape: Shape, outStride: Stride, aSt
                 outBuffer: out.buffer as SharedArrayBuffer,
                 outStride: Array.from(outStride),
                 aBuffer: aStorage.buffer as SharedArrayBuffer,
+                aShape: Array.from(aShape),
                 aStride: Array.from(aStride),
                 bBuffer: bStorage.buffer as SharedArrayBuffer,
                 bStride: Array.from(bStride),
@@ -306,22 +305,31 @@ export function fastMatMul(out: Storage, outShape: Shape, outStride: Stride, aSt
         }
     }
 
+    const batchIndex = new Array(batchRank);
     for (let i = 0; i < outSize; i++){
-        // left to right top to bottom
-        const row = Math.floor(i / n);
-        const column = i % n;
+        // left to right top to bottom, one batch matrix at a time
+        const within = i % matrix;
+        const row = Math.floor(within / n);
+        const column = within % n;
 
-        let aPos = row * aStride[0];
-        let bPos = column * bStride[1];
+        let aBase = 0, bBase = 0, outBase = 0;
+        if (batchRank > 0){
+            positionToIndex(Math.floor(i / matrix), batchShape, batchIndex);
+            aBase = indexToPosition(batchIndex, aStride);
+            bBase = indexToPosition(batchIndex, bStride);
+            outBase = indexToPosition(batchIndex, outStride);
+        }
+
+        let aPos = aBase + row * aStride[rank - 2];
+        let bPos = bBase + column * bStride[rank - 1];
         let sum = 0;
 
         for (let j = 0; j < k; j++){
             sum += aStorage[aPos] * bStorage[bPos];
-            aPos += aStride[1];
-            bPos += bStride[0];
+            aPos += aStride[rank - 1];
+            bPos += bStride[rank - 2];
         }
-        const outPos = row * outStride[0] + column * outStride[1];
-        out[outPos] = sum;
+        out[outBase + row * outStride[rank - 2] + column * outStride[rank - 1]] = sum;
     }
 }
 

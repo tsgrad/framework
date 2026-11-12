@@ -3,10 +3,10 @@
 #include <format>
 #include <span>
 #include <ranges>
+#include <vector>
 
-// Body is intentionally empty.
-// tensor_functions.matmul only calls this for rank-2 inputs:
-//   out [M, N] = a [M, K] @ b [K, N]
+// out[..., M, N] = a[..., M, K] @ b[..., K, N]
+// Leading dimensions are a batch and must match. Both inputs have the same rank, at least 2.
 // Strides are not necessarily contiguous, because permute shares storage.
 //
 // CUDA handoff: tsgrad::cuda::matmul(out, a, b), defined in src/cuda/matmul.cu.
@@ -34,33 +34,76 @@ void matmul(const View& out, const View& a, const View& b) {
             throw std::runtime_error(std::format("Incompatible shapes for matrix mul, a: {:n}, b: {:n}", aview,  bview ));
         }
 
-        if (a.rank != 2)
-            throw std::runtime_error("Shape length must be 2 for now");
+        const int32_t rank = a.rank;
+        const int32_t m = a.shape[rank - 2];
+        const int32_t k = a.shape[rank - 1];
+        const int32_t n = b.shape[rank - 1];
 
-        const int32_t m = a.shape[0];
-        const int32_t k = a.shape[1];
-        const int32_t n = b.shape[1];
+        if (rank == 2){
+            const long long size = static_cast<long long>(m) * static_cast<long long>(n) * static_cast<long long>(k);
+            const long long out_size = static_cast<long long>(m) * static_cast<long long>(n);
 
-        const long long size = static_cast<long long>(m) * static_cast<long long>(n) * static_cast<long long>(k);
-        const long long out_size = static_cast<long long>(m) * static_cast<long long>(n);
+            #pragma omp parallel for if (size >= THRESHOLD)
+            for (long long ordinal = 0; ordinal < out_size; ordinal++){
+                // should always fit in int32_t
+                const int32_t row = ordinal / n;
+                const int32_t column = ordinal % n;
 
-        #pragma omp parallel for if (size >= THRESHOLD)
-        for (long long ordinal = 0; ordinal < out_size; ordinal++){
-            // should always fit in int32_t
-            const int32_t row = ordinal / n;
-            const int32_t column = ordinal % n;
+                int32_t a_pos = row * a.stride[0];
+                int32_t b_pos = column * b.stride[1];
+                float cur = 0;
 
-            int32_t a_pos = row * a.stride[0];
-            int32_t b_pos = column * b.stride[1];
-            float cur = 0;
+                for (long long j = 0; j < k; j++){
+                    cur += a.data[a_pos] * b.data[b_pos];
+                    a_pos += a.stride[1];
+                    b_pos += b.stride[0];
+                }
 
-            for (long long j = 0; j < k; j++){
-                cur += a.data[a_pos] * b.data[b_pos];
-                a_pos += a.stride[1];
-                b_pos += b.stride[0];
+                out.data[row * out.stride[0] + column * out.stride[1]] = cur;
             }
+            return;
+        }
 
-            out.data[row * out.stride[0] + column * out.stride[1]] = cur;
+        const int32_t batch_rank = rank - 2;
+        const long long batch = prod(a.shape, batch_rank);
+        const long long matrix = static_cast<long long>(m) * static_cast<long long>(n);
+        if (batch > 0 && matrix > 0 && batch > LLONG_MAX / matrix)
+            throw std::runtime_error("Overflow, shape must be less than int 64 max");
+        const long long out_size = batch * matrix;
+        if (out_size <= 0) return;
+        if (k > 0 && out_size > LLONG_MAX / static_cast<long long>(k))
+            throw std::runtime_error("Overflow, shape must be less than int 64 max");
+        const long long size = out_size * static_cast<long long>(k);
+
+        #pragma omp parallel if (size >= THRESHOLD)
+        {
+            std::vector<int32_t> batch_index(static_cast<size_t>(batch_rank), 0);
+
+            #pragma omp for
+            for (long long ordinal = 0; ordinal < out_size; ordinal++){
+                const long long matrix_ordinal = ordinal % matrix;
+                const long long batch_ordinal = ordinal / matrix;
+                // should always fit in int32_t
+                const int32_t row = static_cast<int32_t>(matrix_ordinal / n);
+                const int32_t column = static_cast<int32_t>(matrix_ordinal % n);
+
+                position_to_index(batch_ordinal, a.shape, batch_index.data(), batch_rank);
+                const long long a_base = index_to_position(batch_index.data(), a.stride, batch_rank);
+                const long long b_base = index_to_position(batch_index.data(), b.stride, batch_rank);
+                const long long out_base = index_to_position(batch_index.data(), out.stride, batch_rank);
+
+                long long a_pos = a_base + static_cast<long long>(row) * a.stride[rank - 2];
+                long long b_pos = b_base + static_cast<long long>(column) * b.stride[rank - 1];
+                float cur = 0;
+
+                for (long long j = 0; j < k; j++){
+                    cur += a.data[a_pos] * b.data[b_pos];
+                    a_pos += a.stride[rank - 1];
+                    b_pos += b.stride[rank - 2];
+                }
+
+                out.data[out_base + static_cast<long long>(row) * out.stride[rank - 2] + static_cast<long long>(column) * out.stride[rank - 1]] = cur;
+            }
         }
     }
 }
