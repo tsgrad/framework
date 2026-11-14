@@ -38,6 +38,13 @@ float* read_f32(Napi::Env env, const Napi::Value& value, const char* name) {
     return value.As<Napi::Float32Array>().Data();
 }
 
+int32_t read_i32_value(Napi::Env env, const Napi::Value& element, const char* name) {
+    if (!element.IsNumber()) {
+        throw Napi::TypeError::New(env, std::string(name) + " must be a number");
+    }
+    return element.As<Napi::Number>().Int32Value();
+}
+
 class StorageWrap : public Napi::ObjectWrap<StorageWrap> {
 public:
     static Napi::Object Init(Napi::Env env, Napi::Object exports);
@@ -462,6 +469,32 @@ Napi::Value bind_sgd_momentum(const Napi::CallbackInfo& info) {
     return env.Undefined();
 }
 
+Napi::Value bind_gather(const Napi::CallbackInfo& info){
+    Napi::Env env = info.Env();
+    if (info.Length() != 10) {
+        throw Napi::TypeError::New(env, "gather expects (out, outShape, outStride, indicies, indiciesShape, indiciesStride, values, valuesShape, valuesStride, dim)");
+    }
+
+    std::vector<int32_t> out_shape = read_i32_array(env, info[1], "outShape");
+    std::vector<int32_t> out_stride = read_i32_array(env, info[2], "outStride");
+    std::vector<int32_t> indicies_shape = read_i32_array(env, info[4], "indiciesShape");
+    std::vector<int32_t> indicies_stride = read_i32_array(env, info[5], "indiciesStride");
+    std::vector<int32_t> values_shape = read_i32_array(env, info[7], "valuesShape");
+    std::vector<int32_t> values_stride = read_i32_array(env, info[8], "valuesStride");
+    int32_t dim = read_i32_value(env, info[9], "dim");
+
+    check_rank(env, out_shape, out_stride, "out");
+    check_rank(env, indicies_shape, indicies_stride, "indicies");
+    check_rank(env, values_shape, values_stride, "values");
+
+    tsgrad::View out = make_view(env, info[0], out_shape, out_stride, "out");
+    tsgrad::View indicies = make_view(env, info[3], indicies_shape, indicies_stride, "indicies");
+    tsgrad::View values = make_view(env, info[6], values_shape, values_stride, "values");
+    
+    call_native(env, [&](){ tsgrad::gather(out, indicies, values, dim); });
+    return env.Undefined();
+}
+
 void export_conv(Napi::Env env, Napi::Object& exports, const char* name, ConvFn fn) {
     exports.Set(name, Napi::Function::New(env, [fn](const Napi::CallbackInfo& info) {
         return bind_conv(info, fn);
@@ -493,6 +526,7 @@ Napi::Object init(Napi::Env env, Napi::Object exports) {
     export_zip(env, exports, "matmul", tsgrad::matmul);
     export_conv(env, exports, "conv1d", tsgrad::conv1d);
     export_conv(env, exports, "conv2d", tsgrad::conv2d);
+    exports.Set("gather", Napi::Function::New(env, bind_gather));
     exports.Set("sgd", Napi::Function::New(env, bind_sgd));
     exports.Set("sgdMomentum", Napi::Function::New(env, bind_sgd_momentum));
     return exports;

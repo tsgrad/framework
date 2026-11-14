@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, test } from 'vitest';
 import { setBackendForTesting } from '../src/backend/index.js';
 import { tryCreateWebGpuBackend, WebGpuBackend } from '../src/backend/webgpu/webgpu_backend.js';
 import { Tensor } from '../src/tensor.js';
-import { conv1d } from '../src/tensor_functions.js';
+import { conv1d, gather } from '../src/tensor_functions.js';
 import { readStorageAsync, TensorData } from '../src/tensor_data.js';
 
 const backend = await tryCreateWebGpuBackend();
@@ -67,6 +67,30 @@ describe.skipIf(!backend)('WebGPU backend', () => {
         expectClose(await backend!.copyToHostAsync(param), [0.95, 2.1, 2.8]);
         backend!.release(param);
         backend!.release(grad);
+    });
+
+    test('gathers through strided index and value views', async () => {
+        const values = new TensorData(new Float32Array([10, 11, 12, 20, 21, 22]), [2, 3]);
+        const indices = new TensorData(new Float32Array([1, 0, 0, 1]), [2, 2]);
+        expectClose(await readStorageAsync(gather(indices, values, 1)._storage), [11, 10, 20, 21]);
+
+        const column = new TensorData(new Float32Array([0, 1, 2, 0]), [2, 2]);
+        expectClose(await readStorageAsync(gather(column, values.permute(1, 0), 0)._storage), [10, 21, 12, 20]);
+
+        const wide = new TensorData(new Float32Array([1, 0, 2, 0, 1, 1]), [2, 3]);
+        const table = new TensorData(new Float32Array([10, 20, 11, 21, 12, 22, 13, 23]), [4, 2]);
+        expectClose(await readStorageAsync(gather(wide.permute(1, 0), table, 0)._storage), [11, 20, 10, 21, 12, 21]);
+
+        const out = backend!.alloc(4);
+        const indexStorage = backend!.alloc(4);
+        const valueStorage = backend!.alloc(6);
+        backend!.copyFromHost(indexStorage, new Float32Array([1, 0, 0, 1]));
+        backend!.copyFromHost(valueStorage, new Float32Array([10, 11, 12, 20, 21, 22]));
+        backend!.gather(out, [2, 2], [1, 2], indexStorage, [2, 2], [2, 1], valueStorage, [2, 3], [3, 1], 1);
+        expectClose(await backend!.copyToHostAsync(out), [11, 20, 10, 21]);
+        backend!.release(out);
+        backend!.release(indexStorage);
+        backend!.release(valueStorage);
     });
 
     test('reuses pooled buffers without violating queue order', async () => {

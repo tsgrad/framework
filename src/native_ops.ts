@@ -90,3 +90,12 @@ export function tensorConv2d(
 ): void {
     getBackend().conv2d(out, outShape, outStride, input, inShape, inStride, weight, weightShape, weightStride, reverse);
 }
+
+export function tensorGather(
+    out: TensorBuffer, outShape: Shape, outStride: Stride,
+    indicies: TensorBuffer, indiciesShape: Shape, indiciesStride: Stride,
+    values: TensorBuffer, valuesShape: Shape, valuesStride: Stride,
+    dim: number
+): void {
+    getBackend().gather(out, outShape, outStride, indicies, indiciesShape, indiciesStride, values, valuesShape, valuesStride, dim);
+}

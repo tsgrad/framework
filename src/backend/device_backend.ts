@@ -66,4 +66,10 @@ export interface DeviceBackend {
         velocity: BackendStorage, velocityShape: Shape, velocityStride: Stride,
         lr: number, beta: number,
     ): void;
+    gather: (
+        out: BackendStorage, outShape: Shape, outStride: Stride,
+        indicies: BackendStorage, indiciesShape: Shape, indiciesStride: Stride,
+        values: BackendStorage, valuesShape: Shape, valuesStride: Stride,
+        dim: number
+    ) => void;
 }

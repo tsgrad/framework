@@ -70,6 +70,12 @@ export type NativeAddon = {
         velocity: NativeStorage, velocityShape: Shape, velocityStride: Stride,
         lr: number, beta: number,
     ) => void;
+    gather: (
+        out: NativeStorage, outShape: Shape, outStride: Stride,
+        indicies: NativeStorage, indiciesShape: Shape, indiciesStride: Stride,
+        values: NativeStorage, valuesShape: Shape, valuesStride: Stride,
+        dim: number
+    ) => void;
 };
 
 // Set by initBackend(). Keeping this named export preserves the low-level

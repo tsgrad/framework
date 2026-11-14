@@ -167,6 +167,27 @@ fn main(@builtin(workgroup_id) wid: vec3u, @builtin(local_invocation_index) tid:
 }`;
 }
 
+export const GATHER_SHADER = `
+@group(0) @binding(0) var<storage, read> indicies_data: array<f32>;
+@group(0) @binding(1) var<storage, read> values_data: array<f32>;
+@group(0) @binding(2) var<storage, read_write> output_data: array<f32>;
+@group(0) @binding(3) var<storage, read> params: array<u32>;
+${INDEX_HELPERS}
+@compute @workgroup_size(${WORKGROUP_SIZE})
+fn main(@builtin(global_invocation_id) gid: vec3u) {
+    if (gid.x >= params[0]) { return; }
+    let out_rank = params[1];
+    let indicies_rank = params[2];
+    let dim = params[3];
+    var index: array<u32, ${MAX_DIMS}>;
+    to_index(gid.x, 4u, out_rank, &index);
+    // The output lives at the original coordinate. Replacing dim selects the value.
+    let out_pos = index_position(index, ${4 + MAX_DIMS}u, out_rank);
+    let gathered = i32(indicies_data[index_position(index, ${4 + MAX_DIMS * 2}u, indicies_rank)]);
+    index[dim] = u32(gathered);
+    output_data[out_pos] = values_data[index_position(index, ${4 + MAX_DIMS * 3}u, indicies_rank)];
+}`;
+
 export const FILL_SHADER = `
 @group(0) @binding(0) var<storage, read_write> data: array<f32>;
 struct Params { size: u32, value: f32 }

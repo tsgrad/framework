@@ -3,7 +3,7 @@ import type {
 } from '../device_backend.js';
 import {
     alignedMapShader, alignedZipShader, CONV1D_SHADER, CONV2D_SHADER, FILL_SHADER,
-    MATMUL_SHADER, MAX_DIMS, reduceShader, SGD_MOMENTUM_SHADER, SGD_SHADER,
+    GATHER_SHADER, MATMUL_SHADER, MAX_DIMS, reduceShader, SGD_MOMENTUM_SHADER, SGD_SHADER,
     stridedMapShader, stridedZipShader, WORKGROUP_SIZE,
 } from './webgpu_kernels.js';
 import { WebGPUStorage } from './webgpu_storage.js';
@@ -387,6 +387,42 @@ export class WebGpuBackend implements DeviceBackend {
         this.submit('sgdMomentum', SGD_MOMENTUM_SHADER, [
             { binding: 0, resource: { buffer: param.buffer } }, { binding: 1, resource: { buffer: grad.buffer } },
             { binding: 2, resource: { buffer: velocity.buffer } }, { binding: 3, resource: { buffer: params } },
+        ], [Math.ceil(size / WORKGROUP_SIZE)], [params]);
+    }
+
+    gather(outStorage: BackendStorage, outShape: Shape, outStride: Stride,
+        indiciesStorage: BackendStorage, indiciesShape: Shape, indiciesStride: Stride,
+        valuesStorage: BackendStorage, valuesShape: Shape, valuesStride: Stride,
+        dim: number): void {
+        const out = gpuStorage(outStorage), indicies = gpuStorage(indiciesStorage), values = gpuStorage(valuesStorage);
+        if (out.buffer === indicies.buffer || out.buffer === values.buffer) {
+            const temp = this.empty(out.numel);
+            this.gather(temp, outShape, outStride, indicies, indiciesShape, indiciesStride, values, valuesShape, valuesStride, dim);
+            this.copyStorage(temp, out);
+            this.release(temp);
+            return;
+        }
+        if (dim < 0 || dim >= outShape.length)
+            throw new Error('gather received dim outside dimensions of out');
+        if (indiciesShape.length !== valuesShape.length)
+            throw new Error('indicies, and values have differing ranks inside gather');
+        for (let i = 0; i < indiciesShape.length; i++) {
+            if (i !== dim && (indiciesShape[i]! < 0 || indiciesShape[i]! > valuesShape[i]!))
+                throw new Error('gather received incompatible shapes for indicies and values');
+        }
+
+        const size = product(outShape);
+        if (size === 0) return;
+        const params = this.params([
+            size, outShape.length, indiciesShape.length, dim,
+            ...this.pad(outShape), ...this.pad(outStride),
+            ...this.pad(indiciesStride), ...this.pad(valuesStride),
+        ]);
+        this.submit('gather', GATHER_SHADER, [
+            { binding: 0, resource: { buffer: indicies.buffer } },
+            { binding: 1, resource: { buffer: values.buffer } },
+            { binding: 2, resource: { buffer: out.buffer } },
+            { binding: 3, resource: { buffer: params } },
         ], [Math.ceil(size / WORKGROUP_SIZE)], [params]);
     }
 }

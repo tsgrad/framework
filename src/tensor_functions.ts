@@ -5,7 +5,7 @@ import * as operators from "./operators.js";
 // swap out if wanted, tensor_ops has non-multithreaded, the fastTensor stuff is multithreaded
 //import { tensorMap, tensorZip, tensorReduce } from "./tensor_ops.js";
 //import {/*fastTensorMap as tensorMap, fastTensorZip as tensorZip, fastTensorReduce as tensorReduce, fastMatMul as matMul,*/ fastConv1d as tensorConv1d, fastConv2d as tensorConv2d} from "./fast_ops.js";
-import {tensorMap, tensorZip, tensorReduce, matMul, tensorConv1d, tensorConv2d } from "./native_ops.js"
+import {tensorMap, tensorZip, tensorReduce, matMul, tensorConv1d, tensorConv2d, tensorGather } from "./native_ops.js"
 import { randomFloat } from "./helperfunctions.js";
 
 export function neg(a: TensorData): TensorData{
@@ -203,6 +203,13 @@ export function tocontiguous(a: TensorData): TensorData{
     if (stridesShouldBe.every((val, idx) => val === a._stride[idx]) === true)
         return a; // already contiguous
     return id(a);
+}
+
+export function gather(indicies: TensorData, values: TensorData, dim: number): TensorData{
+    const outShape = [...indicies.shape];
+    const out = TensorData.empty(outShape);
+    tensorGather(out._storage, out.shape, out._stride, indicies._storage, indicies._shape, indicies._stride, values._storage, values._shape, values._stride, dim);
+    return out;
 }
 
 export abstract class TensorFunction{
@@ -494,6 +501,20 @@ export class Conv2d extends TensorFunction{
 
         // derivative of input, then weight
         return [new Tensor(conv2d(gradOutput.data, weight.permute(1, 0, 2, 3).data, true)), new Tensor(conv2d(input.permute(1, 0, 2, 3).data, gradOutput.permute(1, 0, 2, 3).data, false, weight.shape()[2], weight.shape()[3])).permute(1, 0, 2, 3).tocontiguous()];
+    }
+}
+
+export function Gather(dim: number): typeof TensorFunction {
+    return class extends TensorFunction{
+        static forward(ctx: Context, indicies: Tensor, values: Tensor): Tensor{
+            ctx.saveForBackward(indicies, values, dim);
+            return new Tensor(gather(indicies.data, values.data, dim));
+        }
+
+        static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
+            // Not sure yet
+            return [new Tensor(new TensorData([0], [1]))];
+        }
     }
 }
 

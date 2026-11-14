@@ -186,7 +186,7 @@ export class ImageTrain{
 // Actual testing down here
 import { fileURLToPath } from "node:url";
 import { loadMnist } from "./mnist_data.js";
-await initBackend({ backend: "auto" });
+await initBackend({ backend: "webgpu" });
 const dataDirectory = fileURLToPath(new URL("./data/mnist/", import.meta.url));
 const dataTrain = await loadMnist(dataDirectory, "train", 0, 10000);
 const dataVal = await loadMnist(dataDirectory, "train", 10000, 500);

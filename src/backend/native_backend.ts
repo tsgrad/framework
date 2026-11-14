@@ -1,4 +1,4 @@
-import type { NativeAddon, NativeStorage } from '../native.js';
+import { native, type NativeAddon, type NativeStorage } from '../native.js';
 import type {
     BackendStorage, BinaryOp, DeviceBackend, ReduceOp, Shape, Stride, UnaryOp,
 } from './device_backend.js';
@@ -83,6 +83,18 @@ export class NativeBackend implements DeviceBackend {
             nativeStorage(grad), gradShape, gradStride,
             nativeStorage(velocity), velocityShape, velocityStride,
             lr, beta,
+        );
+    }
+
+    gather(out: BackendStorage, outShape: Shape, outStride: Stride,
+        indicies: BackendStorage, indiciesShape: Shape, indiciesStride: Stride,
+        values: BackendStorage, valuesShape: Shape, valuesStride: Stride,
+        dim: number): void {
+        this.addon.gather(
+            nativeStorage(out), outShape, outStride,
+            nativeStorage(indicies), indiciesShape, indiciesStride,
+            nativeStorage(values), valuesShape, valuesStride,
+            dim
         );
     }
 }

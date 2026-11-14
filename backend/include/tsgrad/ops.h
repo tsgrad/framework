@@ -66,6 +66,8 @@ void matmul(const View& out, const View& a, const View& b);
 void conv1d(const View& out, const View& input, const View& weight, bool reverse);
 void conv2d(const View& out, const View& input, const View& weight, bool reverse);
 
+void gather(const View& out, const View& indicies, const View& values, const int32_t dim);
+
 // Same signatures as above. Defined in src/cuda/*.cu when TSGRAD_HAS_CUDA is set.
 // On a CUDA build View::data is already a device pointer. The .cu function
 // launches on the process-wide stream and returns without waiting. It does not
@@ -121,6 +123,8 @@ void matmul(const View& out, const View& a, const View& b);
 
 void conv1d(const View& out, const View& input, const View& weight, bool reverse);
 void conv2d(const View& out, const View& input, const View& weight, bool reverse);
+
+void gather(const View& out, const View& indicies, const View& values, const int32_t dim);
 
 // Non-zero storage fill. Queued on the process-wide stream. Does not wait.
 void fill(float* data, size_t numel, float value);

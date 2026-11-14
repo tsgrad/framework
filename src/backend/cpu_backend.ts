@@ -206,4 +206,34 @@ export class CpuBackend implements DeviceBackend {
             p[pp]! -= lr * next;
         }
     }
+
+    gather(out: BackendStorage, outShape: Shape, outStride: Stride,
+        indicies: BackendStorage, indiciesShape: Shape, indiciesStride: Stride,
+        values: BackendStorage, valuesShape: Shape, valuesStride: Stride,
+        dim: number): void{
+            const o = host(out), i = host(indicies), v = host(values);
+            if (dim < 0 || dim >= outShape.length){
+                throw new Error("gather received dim outside dimensions of out");
+            }
+        
+            if (indiciesShape.length != valuesShape.length)
+                throw new Error("indicies, and values have differing ranks inside gather");
+
+            for (let x = 0; x < indiciesShape.length; x++){
+                if (x != dim){
+                    if (indiciesShape[x] < 0 || indiciesShape[x] > valuesShape[x]){
+                        throw new Error("gather received incompatible shapes for indicies and values");
+                    }
+                }
+            }
+
+            const outIndex = new Array(outShape.length);
+            const size = outShape.reduce((a, b) => a * b, 1);
+            for (let ordinal = 0; ordinal < size; ordinal++){
+                positionToIndex(ordinal, outShape, outIndex);
+                const outPos = indexToPosition(outIndex, outStride);
+                outIndex[dim] = i[indexToPosition(outIndex, indiciesStride)];
+                o[outPos] = v[indexToPosition(outIndex, valuesStride)];
+            }
+        }
 }
