@@ -236,4 +236,28 @@ export class CpuBackend implements DeviceBackend {
                 o[outPos] = v[indexToPosition(outIndex, valuesStride)];
             }
         }
+
+    scatter(out: BackendStorage, outShape: Shape, outStride: Stride,
+        indicies: BackendStorage, indiciesShape: Shape, indiciesStride: Stride,
+        grad: BackendStorage, gradShape: Shape, gradStride: Stride,
+        dim: number): void {
+        const destination = host(out), index = host(indicies), gradient = host(grad);
+        if (dim < 0 || dim >= gradShape.length)
+            throw new Error('scatter received dim outside dimensions of grad');
+        if (indiciesShape.length !== outShape.length || indiciesShape.length !== gradShape.length)
+            throw new Error('indicies, out, and grad have differing ranks inside scatter');
+        for (let i = 0; i < indiciesShape.length; i++) {
+            if (i !== dim && (indiciesShape[i]! < 0 || indiciesShape[i]! > outShape[i]!))
+                throw new Error('scatter received incompatible shapes for indicies and out');
+        }
+
+        const gradIndex = new Array<number>(gradShape.length);
+        const size = gradShape.reduce((total, dimSize) => total * dimSize, 1);
+        for (let ordinal = 0; ordinal < size; ordinal++) {
+            positionToIndex(ordinal, gradShape, gradIndex);
+            const gradPos = indexToPosition(gradIndex, gradStride);
+            gradIndex[dim] = Math.trunc(index[indexToPosition(gradIndex, indiciesStride)]!);
+            destination[indexToPosition(gradIndex, outStride)]! += gradient[gradPos]!;
+        }
+    }
 }

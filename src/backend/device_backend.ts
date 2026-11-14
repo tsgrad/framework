@@ -72,4 +72,10 @@ export interface DeviceBackend {
         values: BackendStorage, valuesShape: Shape, valuesStride: Stride,
         dim: number
     ) => void;
+    scatter: (
+        out: BackendStorage, outShape: Shape, outStride: Stride,
+        indicies: BackendStorage, indiciesShape: Shape, indiciesStride: Stride,
+        grad: BackendStorage, gradShape: Shape, gradStride: Stride,
+        dim: number,
+    ) => void;
 }

@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, test } from 'vitest';
 import { setBackendForTesting } from '../src/backend/index.js';
 import { tryCreateWebGpuBackend, WebGpuBackend } from '../src/backend/webgpu/webgpu_backend.js';
 import { Tensor } from '../src/tensor.js';
-import { conv1d, gather } from '../src/tensor_functions.js';
+import { conv1d, gather, scatter } from '../src/tensor_functions.js';
 import { readStorageAsync, TensorData } from '../src/tensor_data.js';
 
 const backend = await tryCreateWebGpuBackend();
@@ -91,6 +91,22 @@ describe.skipIf(!backend)('WebGPU backend', () => {
         backend!.release(out);
         backend!.release(indexStorage);
         backend!.release(valueStorage);
+    });
+
+    test('scatter-adds duplicate gradient entries', async () => {
+        const indices = new TensorData(new Float32Array([1, 0, 0, 1]), [2, 2]);
+        const grad = new TensorData(new Float32Array([1, 2, 3, 4]), [2, 2]);
+        const out = TensorData.fill([2, 3], 0);
+        scatter(out, indices, grad, 1);
+        expectClose(await readStorageAsync(out._storage), [2, 1, 0, 3, 4, 0]);
+
+        const flipped = TensorData.fill([2, 3], 0);
+        scatter(flipped, indices, grad.permute(1, 0), 1);
+        expectClose(await readStorageAsync(flipped._storage), [3, 1, 0, 2, 4, 0]);
+
+        const repeated = TensorData.fill([1, 3], 100);
+        scatter(repeated, new TensorData(new Float32Array([0, 0]), [1, 2]), new TensorData(new Float32Array([5, 7]), [1, 2]), 1);
+        expectClose(await readStorageAsync(repeated._storage), [112, 100, 100]);
     });
 
     test('reuses pooled buffers without violating queue order', async () => {

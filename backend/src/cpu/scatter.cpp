@@ -8,7 +8,7 @@ namespace tsgrad{
     void scatter(const View& out, const View& indicies, const View& grad, const int32_t dim){
         if (dim < 0 || dim >= grad.rank){
             std::span<const int32_t> gradview{grad.shape, static_cast<size_t>(grad.rank)};
-            throw std::runtime_error(std::format("scatter received dim gradside dimensions of grad, received dim: {} and grad.shape: {:n}", dim,  gradview));
+            throw std::runtime_error(std::format("scatter received dim outside dimensions of grad, received dim: {} and grad.shape: {:n}", dim,  gradview));
         }
     
         if (indicies.rank != out.rank || indicies.rank != grad.rank) throw std::runtime_error(std::format("indicies, out, and grad have differing ranks inside scatter, received indicies.rank: {}, out.rank: {}, and grad.rank: {}", indicies.rank, out.rank, grad.rank));

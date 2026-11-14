@@ -1,10 +1,11 @@
 import { describe, test, expect, vi } from "vitest"
 import { Tensor, tensorScope } from "../src/tensor.js"
 import { readStorage, TensorData } from "../src/tensor_data";
-import { conv1d, conv2d } from "../src/tensor_functions.js";
+import { conv1d, conv2d, scatter } from "../src/tensor_functions.js";
 import { fastConv1d, fastConv2d } from "../src/fast_ops.js";
 import { loadNativeAddon, native } from "../src/native.js";
-import { getBackend, initBackend } from "../src/backend/index.js";
+import { CpuBackend } from "../src/backend/cpu_backend.js";
+import { getBackend, initBackend, setBackendForTesting } from "../src/backend/index.js";
 
 const nativeAddon = await loadNativeAddon();
 await initBackend({ backend: nativeAddon ? "native" : "cpu" });
@@ -338,5 +339,24 @@ test("Conv backward matches a finite difference", () => {
         up[i] += eps;
         down[i] -= eps;
         expect(weightGrad[i]).toBeCloseTo((loss(inputVals, up) - loss(inputVals, down)) / (2 * eps));
+    }
+});
+
+test("scatter adds a gradient into the gathered cells", () => {
+    const previous = getBackend();
+    setBackendForTesting(new CpuBackend());
+    try {
+        const out = TensorData.fill([2, 3], 0);
+        const indices = new TensorData(new Float32Array([1, 0, 0, 1]), [2, 2]);
+        const grad = new TensorData(new Float32Array([1, 2, 3, 4]), [2, 2]);
+        scatter(out, indices, grad, 1);
+        expect(Array.from(readStorage(out._storage))).toEqual([2, 1, 0, 3, 4, 0]);
+
+        const repeated = TensorData.fill([1, 3], 100);
+        scatter(repeated, new TensorData(new Float32Array([0, 0]), [1, 2]), new TensorData(new Float32Array([5, 7]), [1, 2]), 1);
+        expect(Array.from(readStorage(repeated._storage))).toEqual([112, 100, 100]);
+    }
+    finally {
+        setBackendForTesting(previous);
     }
 });

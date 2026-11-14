@@ -3,7 +3,7 @@ import { readStorage, readStorageAsync, TensorData, UserShape, Shape } from "./t
 import { getBackend } from "./backend/index.js";
 import { tensorMap, tensorZip } from "./native_ops.js";
 import * as operators from "./operators.js";
-import { Add, TensorFunction, Neg, Mul, Inv, LT, EQ, IsClose, Sigmoid, ReLU, Log, Exp, Sum, Permute, ToContiguous, View, MatMul, Conv1d, Conv2d, Max, Sub, Div } from "./tensor_functions.js";
+import { Add, TensorFunction, Neg, Mul, Inv, LT, EQ, IsClose, Sigmoid, ReLU, Log, Exp, Sum, Permute, ToContiguous, View, MatMul, Conv1d, Conv2d, Max, Sub, Div, Gather } from "./tensor_functions.js";
 
 export class History{
     lastFn : typeof TensorFunction | undefined;
@@ -238,6 +238,10 @@ export class Tensor implements Variable{
 
     conv2d(weight: Tensor): Tensor{
         return Tensor.apply(Conv2d, this, weight);
+    }
+
+    gather(indicies: Tensor, dim: number): Tensor{
+        return Tensor.apply(Gather(dim), indicies, this)
     }
 
     max(dim: number): Tensor{

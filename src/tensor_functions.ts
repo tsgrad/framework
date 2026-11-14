@@ -5,7 +5,7 @@ import * as operators from "./operators.js";
 // swap out if wanted, tensor_ops has non-multithreaded, the fastTensor stuff is multithreaded
 //import { tensorMap, tensorZip, tensorReduce } from "./tensor_ops.js";
 //import {/*fastTensorMap as tensorMap, fastTensorZip as tensorZip, fastTensorReduce as tensorReduce, fastMatMul as matMul,*/ fastConv1d as tensorConv1d, fastConv2d as tensorConv2d} from "./fast_ops.js";
-import {tensorMap, tensorZip, tensorReduce, matMul, tensorConv1d, tensorConv2d, tensorGather } from "./native_ops.js"
+import {tensorMap, tensorZip, tensorReduce, matMul, tensorConv1d, tensorConv2d, tensorGather, tensorScatter } from "./native_ops.js"
 import { randomFloat } from "./helperfunctions.js";
 
 export function neg(a: TensorData): TensorData{
@@ -209,6 +209,12 @@ export function gather(indicies: TensorData, values: TensorData, dim: number): T
     const outShape = [...indicies.shape];
     const out = TensorData.empty(outShape);
     tensorGather(out._storage, out.shape, out._stride, indicies._storage, indicies._shape, indicies._stride, values._storage, values._shape, values._stride, dim);
+    return out;
+}
+
+// Adds grad into out. The destination coordinate is the grad coordinate with dim replaced by indicies.
+export function scatter(out: TensorData, indicies: TensorData, grad: TensorData, dim: number): TensorData{
+    tensorScatter(out._storage, out._shape, out._stride, indicies._storage, indicies._shape, indicies._stride, grad._storage, grad._shape, grad._stride, dim);
     return out;
 }
 
@@ -512,8 +518,9 @@ export function Gather(dim: number): typeof TensorFunction {
         }
 
         static backward(ctx: Context, gradOutput: Tensor): Tensor[]{
-            // Not sure yet
-            return [new Tensor(new TensorData([0], [1]))];
+            const [indicies, values, dim] = ctx.savedValues;
+            const gradValues = new Tensor(TensorData.fill(values.shape(), 0));
+            return [new Tensor(TensorData.fill(indicies.shape(), 0)) , new Tensor(scatter(gradValues.data, indicies.data, gradOutput.data, dim))];
         }
     }
 }

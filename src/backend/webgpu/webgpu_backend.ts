@@ -3,7 +3,7 @@ import type {
 } from '../device_backend.js';
 import {
     alignedMapShader, alignedZipShader, CONV1D_SHADER, CONV2D_SHADER, FILL_SHADER,
-    GATHER_SHADER, MATMUL_SHADER, MAX_DIMS, reduceShader, SGD_MOMENTUM_SHADER, SGD_SHADER,
+    GATHER_SHADER, MATMUL_SHADER, MAX_DIMS, reduceShader, SCATTER_SHADER, SGD_MOMENTUM_SHADER, SGD_SHADER,
     stridedMapShader, stridedZipShader, WORKGROUP_SIZE,
 } from './webgpu_kernels.js';
 import { WebGPUStorage } from './webgpu_storage.js';
@@ -424,6 +424,54 @@ export class WebGpuBackend implements DeviceBackend {
             { binding: 2, resource: { buffer: out.buffer } },
             { binding: 3, resource: { buffer: params } },
         ], [Math.ceil(size / WORKGROUP_SIZE)], [params]);
+    }
+
+    scatter(outStorage: BackendStorage, outShape: Shape, outStride: Stride,
+        indiciesStorage: BackendStorage, indiciesShape: Shape, indiciesStride: Stride,
+        gradStorage: BackendStorage, gradShape: Shape, gradStride: Stride,
+        dim: number): void {
+        const out = gpuStorage(outStorage);
+        let indicies = gpuStorage(indiciesStorage);
+        let grad = gpuStorage(gradStorage);
+        const copies: WebGPUStorage[] = [];
+        if (out.buffer === indicies.buffer) {
+            const copy = this.empty(indicies.numel);
+            this.copyStorage(indicies, copy);
+            indicies = copy;
+            copies.push(copy);
+        }
+        if (out.buffer === grad.buffer) {
+            const copy = this.empty(grad.numel);
+            this.copyStorage(grad, copy);
+            grad = copy;
+            copies.push(copy);
+        }
+        if (dim < 0 || dim >= gradShape.length)
+            throw new Error('scatter received dim outside dimensions of grad');
+        if (indiciesShape.length !== outShape.length || indiciesShape.length !== gradShape.length)
+            throw new Error('indicies, out, and grad have differing ranks inside scatter');
+        for (let i = 0; i < indiciesShape.length; i++) {
+            if (i !== dim && (indiciesShape[i]! < 0 || indiciesShape[i]! > outShape[i]!))
+                throw new Error('scatter received incompatible shapes for indicies and out');
+        }
+
+        const size = product(gradShape);
+        if (size === 0) {
+            copies.forEach(copy => this.release(copy));
+            return;
+        }
+        const params = this.params([
+            size, gradShape.length, indiciesShape.length, dim,
+            ...this.pad(gradShape), ...this.pad(gradStride),
+            ...this.pad(indiciesStride), ...this.pad(outStride),
+        ]);
+        this.submit('scatter', SCATTER_SHADER, [
+            { binding: 0, resource: { buffer: indicies.buffer } },
+            { binding: 1, resource: { buffer: grad.buffer } },
+            { binding: 2, resource: { buffer: out.buffer } },
+            { binding: 3, resource: { buffer: params } },
+        ], [Math.ceil(size / WORKGROUP_SIZE)], [params]);
+        copies.forEach(copy => this.release(copy));
     }
 }
 

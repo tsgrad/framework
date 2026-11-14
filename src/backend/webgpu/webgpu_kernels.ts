@@ -188,6 +188,35 @@ fn main(@builtin(global_invocation_id) gid: vec3u) {
     output_data[out_pos] = values_data[index_position(index, ${4 + MAX_DIMS * 3}u, indicies_rank)];
 }`;
 
+export const SCATTER_SHADER = `
+@group(0) @binding(0) var<storage, read> indicies_data: array<f32>;
+@group(0) @binding(1) var<storage, read> grad_data: array<f32>;
+@group(0) @binding(2) var<storage, read_write> out_data: array<atomic<u32>>;
+@group(0) @binding(3) var<storage, read> params: array<u32>;
+${INDEX_HELPERS}
+fn atomic_add_f32(index: u32, add: f32) {
+    var old = atomicLoad(&out_data[index]);
+    loop {
+        let updated = bitcast<u32>(bitcast<f32>(old) + add);
+        let result = atomicCompareExchangeWeak(&out_data[index], old, updated);
+        if result.exchanged { break; }
+        old = result.old_value;
+    }
+}
+@compute @workgroup_size(${WORKGROUP_SIZE})
+fn main(@builtin(global_invocation_id) gid: vec3u) {
+    if (gid.x >= params[0]) { return; }
+    let grad_rank = params[1];
+    let indicies_rank = params[2];
+    let dim = params[3];
+    var index: array<u32, ${MAX_DIMS}>;
+    to_index(gid.x, 4u, grad_rank, &index);
+    let grad_pos = index_position(index, ${4 + MAX_DIMS}u, grad_rank);
+    let gathered = i32(indicies_data[index_position(index, ${4 + MAX_DIMS * 2}u, indicies_rank)]);
+    index[dim] = u32(gathered);
+    atomic_add_f32(index_position(index, ${4 + MAX_DIMS * 3}u, grad_rank), grad_data[grad_pos]);
+}`;
+
 export const FILL_SHADER = `
 @group(0) @binding(0) var<storage, read_write> data: array<f32>;
 struct Params { size: u32, value: f32 }
